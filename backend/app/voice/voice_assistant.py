@@ -1,3 +1,8 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
 import speech_recognition as sr
 import pyttsx3
 import requests
@@ -75,6 +80,8 @@ class VoiceAssistant:
     # -------------------------
     def run(self):
 
+        self.speak("Voice assistant started")
+
         while True:
 
             text = self.listen()
@@ -83,18 +90,59 @@ class VoiceAssistant:
                 continue
 
             if "stop" in text.lower():
+                self.speak("Goodbye")
                 break
 
-            # ✅ Smart Router
-            data = self.smart_router.classify(text)
+            try:
+                # 🔥 FIRST TRY SMART ROUTER (includes email)
+                result = self.smart_router.route(text)
 
-            result = self.router.execute(data)
+                # -------------------------
+                # EMAIL CONFIRMATION FLOW
+                # -------------------------
+                if isinstance(result, dict) and result.get("action") == "confirm_email":
 
-            if result:
-                self.speak(str(result))
-            else:
-                reply = self.ask_ai(text)
-                self.speak(reply)
+                    to_email = result["to"]
+                    subject = result["subject"]
+                    body = result["body"]
+
+                    self.speak(f"Do you want me to send the email to {to_email}?")
+
+                    confirm = self.listen()
+
+                    if confirm and "yes" in confirm.lower():
+
+                        send_result = self.smart_router.gmail_agent.send_email(
+                            to=to_email,
+                            subject=subject,
+                            body=body
+                        )
+
+                        self.speak("Email sent successfully")
+
+                    else:
+                        self.speak("Email cancelled")
+
+                    continue
+
+                # If SmartRouter returned something else useful
+                if result and result != {"intent": "chat"}:
+                    self.speak(str(result))
+                    continue
+
+                # 🔥 OTHERWISE USE COMMAND ROUTER
+                data = self.smart_router.classify(text)
+                result = self.router.execute(data)
+
+                if result:
+                    self.speak(str(result))
+                else:
+                    reply = self.ask_ai(text)
+                    self.speak(reply)
+
+            except Exception as e:
+                print("Error:", e)
+                self.speak("Something went wrong")
 
 
 if __name__ == "__main__":
