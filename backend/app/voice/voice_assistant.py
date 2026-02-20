@@ -72,7 +72,6 @@ class VoiceAssistant:
         }
 
         response = requests.post(url, json=payload)
-
         return response.json()["response"]
 
     # -------------------------
@@ -94,7 +93,7 @@ class VoiceAssistant:
                 break
 
             try:
-                # 🔥 FIRST TRY SMART ROUTER (includes email)
+                # 🔥 FIRST TRY SMART ROUTER (email + AI email)
                 result = self.smart_router.route(text)
 
                 # -------------------------
@@ -106,13 +105,18 @@ class VoiceAssistant:
                     subject = result["subject"]
                     body = result["body"]
 
-                    self.speak(f"Do you want me to send the email to {to_email}?")
+                    # Read email to user
+                    self.speak(f"I have prepared an email to {to_email}")
+                    self.speak(f"Subject: {subject}")
+                    self.speak(body)
+
+                    self.speak("Do you want me to send it?")
 
                     confirm = self.listen()
 
-                    if confirm and "yes" in confirm.lower():
+                    if confirm and any(word in confirm.lower() for word in ["yes", "send", "ok", "sure"]):
 
-                        send_result = self.smart_router.gmail_agent.send_email(
+                        self.smart_router.gmail_agent.send_email(
                             to=to_email,
                             subject=subject,
                             body=body
@@ -125,7 +129,7 @@ class VoiceAssistant:
 
                     continue
 
-                # If SmartRouter returned something else useful
+                # If SmartRouter returned something useful
                 if result and result != {"intent": "chat"}:
                     self.speak(str(result))
                     continue

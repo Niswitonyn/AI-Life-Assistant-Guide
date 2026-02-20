@@ -4,17 +4,17 @@ from email.mime.text import MIMEText
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+
+from app.data.contact_manager import ContactManager
 
 
 class GmailAgent:
 
     SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
-    def __init__(self, user_id: str = "default"):
-
-        self.user_id = user_id
+    def __init__(self):
 
         base_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..")
@@ -24,13 +24,12 @@ class GmailAgent:
             base_dir, "config", "credentials.json"
         )
 
-        # ⭐ Multi‑user token storage
         self.token_path = os.path.join(
-            base_dir, "data", "tokens", f"{user_id}_token.json"
+            base_dir, "..", "data", "gmail_token.json"
         )
 
-        # create folder if missing
-        os.makedirs(os.path.dirname(self.token_path), exist_ok=True)
+        # ✅ Contact manager initialized correctly
+        self.contacts = ContactManager()
 
         self.service = self.authenticate()
 
@@ -41,38 +40,50 @@ class GmailAgent:
 
         creds = None
 
-        # Load existing token
         if os.path.exists(self.token_path):
             creds = Credentials.from_authorized_user_file(
                 self.token_path, self.SCOPES
             )
 
-        # Login / refresh
         if not creds or not creds.valid:
 
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
 
             else:
-                if not os.path.exists(self.credentials_path):
-                    raise FileNotFoundError(
-                        f"Missing credentials.json at {self.credentials_path}"
-                    )
-
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_path, self.SCOPES
                 )
 
                 creds = flow.run_local_server(port=0)
 
-            # Save token
+            os.makedirs(os.path.dirname(self.token_path), exist_ok=True)
+
             with open(self.token_path, "w") as token:
                 token.write(creds.to_json())
 
-        return build("gmail", "v1", credentials=creds)
+        service = build("gmail", "v1", credentials=creds)
+
+        return service
 
     # -------------------------
-    # READ EMAILS
+    # EXTRACT SENDER INFO
+    # -------------------------
+    def extract_sender(self, msg_data):
+
+        headers = msg_data.get("payload", {}).get("headers", [])
+
+        sender = ""
+
+        for h in headers:
+            if h["name"] == "From":
+                sender = h["value"]
+                break
+
+        return sender
+
+    # -------------------------
+    # READ LATEST EMAILS
     # -------------------------
     def get_latest_emails(self, max_results=5):
 
@@ -98,6 +109,11 @@ class GmailAgent:
             snippet = msg_data.get("snippet", "")
             emails.append(snippet)
 
+            # ✅ AUTO SAVE CONTACT
+            sender = self.extract_sender(msg_data)
+            if sender:
+                self.contacts.add_from_sender(sender)
+
         return emails
 
     # -------------------------
@@ -108,33 +124,24 @@ class GmailAgent:
         message = MIMEText(body)
 
         message["to"] = to
-        message["from"] = "me"
         message["subject"] = subject
 
         raw = base64.urlsafe_b64encode(
             message.as_bytes()
         ).decode()
 
-        try:
-            self.service.users().messages().send(
-                userId="me",
-                body={"raw": raw}
-            ).execute()
+        send_message = {"raw": raw}
 
-            return "Email sent successfully"
+        self.service.users().messages().send(
+            userId="me", body=send_message
+        ).execute()
 
-        except Exception as e:
-            return f"Error sending email: {e}"
+        return "Email sent successfully"
 
     # -------------------------
-    # START PUSH WATCH
+    # START GMAIL PUSH WATCH
     # -------------------------
-    def start_watch(self, topic_name: str):
-
-        """
-        topic_name example:
-        projects/YOUR_PROJECT_ID/topics/gmail-notifications
-        """
+    def start_watch(self, topic_name):
 
         request = {
             "labelIds": ["INBOX"],
