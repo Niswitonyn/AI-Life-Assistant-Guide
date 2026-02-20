@@ -1,11 +1,6 @@
-# Sensitive files
 backend/app/config/credentials.json
+backend/app/data/
 backend/data/
-*.db
-*.key
-token.json
+*.json
 .env
-
-# Python cache
-__pycache__/
-*.pyc
+tokens/
