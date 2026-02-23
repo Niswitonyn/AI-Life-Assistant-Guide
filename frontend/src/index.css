@@ -1,0 +1,26 @@
+body {
+  background: radial-gradient(circle at center, #050816, #02030a);
+  color: #00e5ff;
+  font-family: 'Orbitron', sans-serif;
+}
+
+/* Glow cards */
+.jarvis-card {
+  background: rgba(0, 20, 40, 0.6);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+}
+
+/* Neon buttons */
+.jarvis-btn {
+  background: linear-gradient(90deg, #00e5ff, #0077ff);
+  color: black;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.jarvis-btn:hover {
+  box-shadow: 0 0 15px #00e5ff;
+  transform: scale(1.05);
+}

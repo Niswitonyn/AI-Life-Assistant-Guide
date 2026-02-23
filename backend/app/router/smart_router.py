@@ -4,15 +4,77 @@ import os
 
 from app.agents.gmail_agent import GmailAgent
 
+# MEMORY
+from app.memory.memory_manager import MemoryManager
+from app.database.db import SessionLocal
+
 
 class SmartRouter:
 
-    def __init__(self):
+    def __init__(self, user_id: str = "default", memory_manager=None):
+
         self.url = "http://127.0.0.1:8000/api/ai/chat"
-        self.gmail_agent = GmailAgent()
+
+        # Multi‑user
+        self.user_id = user_id
+
+        # Gmail per user
+        self.gmail_agent = GmailAgent(user_id=user_id)
+
+        # Memory
+        if memory_manager:
+            self.memory = memory_manager
+        else:
+            self.db = SessionLocal()
+            self.memory = MemoryManager(self.db, user_id)
 
     # -------------------------
-    # LOAD CONTACTS
+    # AI REQUEST HELPER (WITH CONTEXT)
+    # -------------------------
+    def _ask_ai(self, prompt: str):
+
+        recent_conv = []
+        memories = []
+
+        if self.memory:
+            recent = self.memory.get_recent_conversation(5)
+            mems = self.memory.get_memories()
+
+            recent_conv = [
+                f"{c.role}: {c.message}" for c in recent
+            ]
+
+            memories = [
+                m.content for m in mems
+            ]
+
+        context_block = f"""
+USER MEMORIES:
+{memories}
+
+RECENT CONVERSATION:
+{recent_conv}
+"""
+
+        full_prompt = context_block + "\n\n" + prompt
+
+        payload = {
+            "provider": "ollama",
+            "model": "llama3",
+            "messages": [
+                {"role": "user", "content": full_prompt}
+            ]
+        }
+
+        try:
+            response = requests.post(self.url, json=payload, timeout=60)
+            return response.json().get("response", "")
+
+        except Exception:
+            return ""
+
+    # -------------------------
+    # LOAD CONTACTS (fallback json)
     # -------------------------
     def load_contacts(self):
 
@@ -29,7 +91,7 @@ class SmartRouter:
         return {}
 
     # -------------------------
-    # AI EMAIL GENERATION
+    # EMAIL GENERATION
     # -------------------------
     def generate_email(self, topic: str):
 
@@ -38,32 +100,19 @@ Write a professional email about: {topic}.
 Return JSON with keys: subject and body.
 """
 
-        payload = {
-            "provider": "ollama",
-            "model": "llama3",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
+        reply = self._ask_ai(prompt)
 
         try:
-            response = requests.post(self.url, json=payload)
-            reply = response.json().get("response", "")
-
             data = json.loads(reply)
-
             subject = data.get("subject", topic)
             body = data.get("body", topic)
-
             return subject, body
 
         except Exception:
-            subject = topic
-            body = f"Hello,\n\nThis is regarding {topic}.\n\nRegards"
-            return subject, body
+            return topic, f"Hello,\n\nThis is regarding {topic}.\n\nRegards"
 
     # -------------------------
-    # AI REPLY GENERATION
+    # EMAIL REPLY
     # -------------------------
     def generate_reply(self, original_text: str, instruction: str):
 
@@ -79,23 +128,12 @@ Write a polite email reply.
 Return only the reply text.
 """
 
-        payload = {
-            "provider": "ollama",
-            "model": "llama3",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
+        reply = self._ask_ai(prompt)
 
-        try:
-            response = requests.post(self.url, json=payload)
-            return response.json().get("response", instruction)
-
-        except Exception:
-            return instruction
+        return reply if reply else instruction
 
     # -------------------------
-    # AI SUMMARY
+    # EMAIL SUMMARY
     # -------------------------
     def summarize_emails(self, emails):
 
@@ -109,20 +147,9 @@ Summarize these emails clearly.
 Give short bullet points.
 """
 
-        payload = {
-            "provider": "ollama",
-            "model": "llama3",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
+        reply = self._ask_ai(prompt)
 
-        try:
-            response = requests.post(self.url, json=payload)
-            return response.json().get("response", "No summary available")
-
-        except Exception:
-            return "Could not summarize emails"
+        return reply if reply else "Could not summarize emails"
 
     # -------------------------
     # EMAIL HANDLER
@@ -160,7 +187,6 @@ Give short bullet points.
 
                 to_email = contacts.get(name, name)
 
-                # instruction
                 if "saying" in words:
                     say_index = words.index("saying") + 1
                     instruction = " ".join(words[say_index:])
@@ -197,7 +223,6 @@ Give short bullet points.
                 recipient = words[to_index].lower()
                 to_email = contacts.get(recipient, recipient)
 
-                # topic
                 if "about" in words:
                     about_index = words.index("about") + 1
                     topic = " ".join(words[about_index:])
@@ -247,19 +272,10 @@ Now classify:
 {text}
 """
 
-        payload = {
-            "provider": "ollama",
-            "model": "llama3",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
+        reply = self._ask_ai(prompt)
 
         try:
-            response = requests.post(self.url, json=payload)
-            reply = response.json().get("response", "")
             return json.loads(reply)
-
         except Exception:
             return {"intent": "chat"}
 
@@ -268,10 +284,20 @@ Now classify:
     # -------------------------
     def route(self, text: str):
 
+        # SAVE USER MESSAGE
+        if self.memory:
+            self.memory.save_conversation("user", text)
+
         intent_data = self.classify(text)
         intent = intent_data.get("intent")
 
         if intent == "email":
-            return self.handle_email(text)
+            result = self.handle_email(text)
+        else:
+            result = intent_data
 
-        return intent_data
+        # SAVE ASSISTANT RESPONSE
+        if self.memory:
+            self.memory.save_conversation("assistant", str(result))
+
+        return result

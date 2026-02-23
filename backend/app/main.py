@@ -8,10 +8,13 @@ import base64
 import json
 import os
 
+# ROUTERS
 from app.api.routes_tasks import router as tasks_router
 from app.api.routes_ai import router as ai_router
 from app.api.routes_settings import router as settings_router
+from app.api.routes_setup import router as setup_router
 
+# CORE
 from app.database.init_db import init_db
 from app.scheduler.reminder_scheduler import ReminderScheduler
 
@@ -20,18 +23,20 @@ from app.agents.gmail_agent import GmailAgent
 from app.notifications.email_notifier import EmailNotifier
 from app.voice.voice_assistant import VoiceAssistant
 
+from app.api.routes_auth import router as auth_router
+
 # -------------------------
 # GLOBAL SERVICES
 # -------------------------
 voice_assistant = VoiceAssistant()
 
-# NOTE:
-# GmailAgent will be created dynamically per user
+# GmailAgent created per user dynamically
 notifier = EmailNotifier(
     gmail_agent=None,
     voice_assistant=voice_assistant,
     ai_url="http://127.0.0.1:8000/api/ai/chat"
 )
+
 
 # -------------------------
 # LIFESPAN
@@ -41,8 +46,10 @@ async def lifespan(app: FastAPI):
 
     print("🚀 AI Life Assistant Backend Starting...")
 
+    # Initialize DB
     init_db()
 
+    # Start background scheduler
     scheduler = ReminderScheduler()
     threading.Thread(target=scheduler.start, daemon=True).start()
 
@@ -61,16 +68,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # -------------------------
 # CORS
 # -------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # -------------------------
 # ROOT
@@ -109,7 +121,7 @@ async def gmail_webhook(request: Request):
     # -------------------------
     # FIND USER FROM MAPPING
     # -------------------------
-    users_file = "app/data/pubsub_users.json"
+    users_file = os.path.join("app", "data", "pubsub_users.json")
 
     if not os.path.exists(users_file):
         return {"status": "no user mapping"}
@@ -133,7 +145,7 @@ async def gmail_webhook(request: Request):
     # -------------------------
     # LOAD USER GMAIL
     # -------------------------
-    gmail_agent = GmailAgent(user_id)
+    gmail_agent = GmailAgent(user_id=user_id)
 
     results = gmail_agent.service.users().messages().list(
         userId="me",
@@ -154,9 +166,11 @@ async def gmail_webhook(request: Request):
 # -------------------------
 # ROUTERS
 # -------------------------
+app.include_router(setup_router, prefix="/api/setup", tags=["Setup"])
 app.include_router(ai_router, prefix="/api/ai", tags=["AI"])
 app.include_router(settings_router, prefix="/api/settings", tags=["Settings"])
 app.include_router(tasks_router, prefix="/api/tasks", tags=["Tasks"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 
 
 # -------------------------

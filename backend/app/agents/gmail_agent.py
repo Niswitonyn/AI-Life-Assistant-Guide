@@ -4,8 +4,10 @@ from email.mime.text import MIMEText
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+
+from app.data.contact_manager import ContactManager
 
 
 class GmailAgent:
@@ -20,18 +22,24 @@ class GmailAgent:
             os.path.join(os.path.dirname(__file__), "..")
         )
 
+        # -------------------------
+        # PATHS
+        # -------------------------
         self.credentials_path = os.path.join(
             base_dir, "config", "credentials.json"
         )
 
-        # ⭐ Multi‑user token storage
         self.token_path = os.path.join(
-            base_dir, "data", "tokens", f"{user_id}_token.json"
+            base_dir, "..", "data", "tokens",
+            f"{user_id}_gmail_token.json"
         )
 
-        # create folder if missing
         os.makedirs(os.path.dirname(self.token_path), exist_ok=True)
 
+        # Contact manager
+        self.contacts = ContactManager()
+
+        # Gmail service
         self.service = self.authenticate()
 
     # -------------------------
@@ -41,100 +49,149 @@ class GmailAgent:
 
         creds = None
 
-        # Load existing token
         if os.path.exists(self.token_path):
             creds = Credentials.from_authorized_user_file(
                 self.token_path, self.SCOPES
             )
 
-        # Login / refresh
         if not creds or not creds.valid:
 
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
 
             else:
-                if not os.path.exists(self.credentials_path):
-                    raise FileNotFoundError(
-                        f"Missing credentials.json at {self.credentials_path}"
-                    )
-
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_path, self.SCOPES
+                    self.credentials_path,
+                    self.SCOPES
                 )
-
                 creds = flow.run_local_server(port=0)
 
-            # Save token
             with open(self.token_path, "w") as token:
                 token.write(creds.to_json())
 
-        return build("gmail", "v1", credentials=creds)
+        service = build("gmail", "v1", credentials=creds)
+
+        return service
 
     # -------------------------
-    # READ EMAILS
+    # GET EMAIL BY ID
     # -------------------------
-    def get_latest_emails(self, max_results=5):
+    def get_email_by_id(self, message_id: str):
 
-        results = (
-            self.service.users()
-            .messages()
-            .list(userId="me", maxResults=max_results)
-            .execute()
-        )
-
-        messages = results.get("messages", [])
-        emails = []
-
-        for msg in messages:
-
+        try:
             msg_data = (
                 self.service.users()
                 .messages()
-                .get(userId="me", id=msg["id"])
+                .get(userId="me", id=message_id)
                 .execute()
             )
 
-            snippet = msg_data.get("snippet", "")
-            emails.append(snippet)
+            headers = msg_data.get("payload", {}).get("headers", [])
 
-        return emails
+            subject = ""
+            sender = ""
+
+            for h in headers:
+                if h["name"] == "Subject":
+                    subject = h["value"]
+                if h["name"] == "From":
+                    sender = h["value"]
+
+            snippet = msg_data.get("snippet", "")
+
+            return {
+                "subject": subject,
+                "from": sender,
+                "snippet": snippet
+            }
+
+        except Exception as e:
+            print("❌ Error getting email:", e)
+            return None
+
+    # -------------------------
+    # EXTRACT SENDER
+    # -------------------------
+    def extract_sender(self, msg_data):
+
+        headers = msg_data.get("payload", {}).get("headers", [])
+
+        for h in headers:
+            if h["name"] == "From":
+                return h["value"]
+
+        return ""
+
+    # -------------------------
+    # READ LATEST EMAILS
+    # -------------------------
+    def get_latest_emails(self, max_results=5):
+
+        try:
+            results = (
+                self.service.users()
+                .messages()
+                .list(userId="me", maxResults=max_results)
+                .execute()
+            )
+
+            messages = results.get("messages", [])
+            emails = []
+
+            for msg in messages:
+
+                msg_data = (
+                    self.service.users()
+                    .messages()
+                    .get(userId="me", id=msg["id"])
+                    .execute()
+                )
+
+                snippet = msg_data.get("snippet", "")
+                emails.append(snippet)
+
+                # AUTO SAVE CONTACT
+                sender = self.extract_sender(msg_data)
+                if sender:
+                    self.contacts.add_from_sender(sender)
+
+            return emails
+
+        except Exception as e:
+            print("❌ Error reading emails:", e)
+            return []
 
     # -------------------------
     # SEND EMAIL
     # -------------------------
-    def send_email(self, to, subject, body):
-
-        message = MIMEText(body)
-
-        message["to"] = to
-        message["from"] = "me"
-        message["subject"] = subject
-
-        raw = base64.urlsafe_b64encode(
-            message.as_bytes()
-        ).decode()
+    def send_email(self, to: str, subject: str, body: str):
 
         try:
+            message = MIMEText(body)
+
+            message["to"] = to
+            message["subject"] = subject
+
+            raw = base64.urlsafe_b64encode(
+                message.as_bytes()
+            ).decode()
+
+            send_message = {"raw": raw}
+
             self.service.users().messages().send(
-                userId="me",
-                body={"raw": raw}
+                userId="me", body=send_message
             ).execute()
 
             return "Email sent successfully"
 
         except Exception as e:
-            return f"Error sending email: {e}"
+            print("❌ Send email error:", e)
+            return "Failed to send email"
 
     # -------------------------
-    # START PUSH WATCH
+    # START GMAIL PUSH WATCH
     # -------------------------
     def start_watch(self, topic_name: str):
-
-        """
-        topic_name example:
-        projects/YOUR_PROJECT_ID/topics/gmail-notifications
-        """
 
         request = {
             "labelIds": ["INBOX"],
