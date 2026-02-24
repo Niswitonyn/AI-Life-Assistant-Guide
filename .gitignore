@@ -1,6 +1,19 @@
+# Node
+node_modules
+frontend/node_modules
+
+# Build
+dist
+build
+
+# Environment
+.env
+
+# Tokens / secrets
+tokens/
+*.json
+
+# Backend sensitive
 backend/app/config/credentials.json
 backend/app/data/
 backend/data/
-*.json
-.env
-tokens/
