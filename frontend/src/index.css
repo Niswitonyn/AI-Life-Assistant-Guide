@@ -1,26 +1,105 @@
+/* -------------------------
+   GLOBAL
+------------------------- */
 body {
-  background: radial-gradient(circle at center, #050816, #02030a);
-  color: #00e5ff;
+  margin: 0;
+  background: transparent; /* IMPORTANT for Electron transparency */
   font-family: 'Orbitron', sans-serif;
+  color: #00e5ff;
+  overflow: hidden;
 }
 
-/* Glow cards */
-.jarvis-card {
-  background: rgba(0, 20, 40, 0.6);
-  border: 1px solid rgba(0, 229, 255, 0.3);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+/* -------------------------
+   JARVIS CONTAINER
+------------------------- */
+.jarvis-container {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 160px;
+  height: 160px;
+  z-index: 9999;
+  cursor: pointer;
 }
 
-/* Neon buttons */
-.jarvis-btn {
-  background: linear-gradient(90deg, #00e5ff, #0077ff);
-  color: black;
-  font-weight: bold;
-  transition: 0.3s;
+/* Smooth transitions */
+.jarvis-core,
+.jarvis-ring {
+  transition: all 0.3s ease;
 }
 
-.jarvis-btn:hover {
-  box-shadow: 0 0 15px #00e5ff;
-  transform: scale(1.05);
+/* -------------------------
+   OUTER RING
+------------------------- */
+.jarvis-ring {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 229, 255, 0.6);
+
+  box-shadow:
+    0 0 10px #00e5ff,
+    0 0 25px #00e5ff,
+    inset 0 0 15px rgba(0,229,255,0.5);
+
+  animation: rotate 8s linear infinite;
+}
+
+/* -------------------------
+   INNER CORE
+------------------------- */
+.jarvis-core {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+
+  background: radial-gradient(circle, #00e5ff, #003b55);
+
+  box-shadow:
+    0 0 20px #00e5ff,
+    0 0 40px #00e5ff,
+    0 0 60px rgba(0,229,255,0.6);
+
+  animation: pulse 2s infinite;
+}
+
+/* -------------------------
+   MODES
+------------------------- */
+
+/* Listening */
+.jarvis-container.listening .jarvis-core {
+  box-shadow:
+    0 0 40px #00e5ff,
+    0 0 80px #00e5ff,
+    0 0 120px rgba(0,229,255,0.9);
+  transform: scale(1.2);
+}
+
+/* Thinking */
+.jarvis-container.thinking .jarvis-ring {
+  animation: rotate 1s linear infinite;
+}
+
+/* Speaking */
+.jarvis-container.speaking .jarvis-core {
+  animation: pulse 0.8s infinite;
+}
+
+/* -------------------------
+   ANIMATIONS
+------------------------- */
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%   { transform: scale(1); opacity: 0.9; }
+  50%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.9; }
 }

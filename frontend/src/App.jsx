@@ -2,25 +2,45 @@ import { useEffect, useState } from "react";
 import Onboarding from "./components/onboarding/Onboarding";
 import ChatWindow from "./components/ChatWindow";
 import Login from "./components/Login";
+import JarvisAvatar from "./components/JarvisAvatar";
 
 function App() {
 
   const [configured, setConfigured] = useState(null);
 
-  // ✅ Login token
+  // Login token
   const token = localStorage.getItem("token");
 
   // -------------------------
-  // CHECK FIRST RUN SETUP
+  // VOICE WELCOME
+  // -------------------------
+  const speakWelcome = () => {
+
+    if (!("speechSynthesis" in window)) return;
+
+    const msg = new SpeechSynthesisUtterance(
+      "Welcome back. All systems are online."
+    );
+
+    msg.rate = 0.9;
+    msg.pitch = 0.8;
+
+    speechSynthesis.speak(msg);
+  };
+
+  // -------------------------
+  // CHECK SETUP STATUS
   // -------------------------
   useEffect(() => {
 
-    if (!token) return; // not logged in yet
+    if (!token) return;
 
     fetch("http://127.0.0.1:8000/api/setup/status")
       .then(res => res.json())
       .then(data => setConfigured(data.configured))
       .catch(() => setConfigured(false));
+
+    speakWelcome();
 
   }, [token]);
 
@@ -35,11 +55,11 @@ function App() {
   // LOADING
   // -------------------------
   if (configured === null) {
-    return <div>Loading...</div>;
+    return <div style={{ color: "white", padding: 20 }}>Loading...</div>;
   }
 
   // -------------------------
-  // FIRST RUN → ONBOARDING
+  // FIRST RUN
   // -------------------------
   if (!configured) {
     return (
@@ -52,7 +72,14 @@ function App() {
   // -------------------------
   // NORMAL APP
   // -------------------------
-  return <ChatWindow />;
+  return (
+    <>
+      <ChatWindow />
+
+      {/* Floating Jarvis */}
+      <JarvisAvatar />
+    </>
+  );
 }
 
 export default App;
