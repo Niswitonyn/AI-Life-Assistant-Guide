@@ -3,17 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "main": "electron.js",
+
   "scripts": {
-  "dev": "vite",
-  "electron": "npx electron .",
-  "start": "concurrently \"npm run dev\" \"npm run electron\"",
-  "build": "vite build",
-  "preview": "vite preview"
-},
+    "dev": "vite",
+    "electron": "wait-on http://localhost:5173 && electron .",
+    "start": "concurrently \"npm run dev\" \"npm run electron\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
+
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
     "concurrently": "^8.0.0",
