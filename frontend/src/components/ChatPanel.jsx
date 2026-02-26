@@ -22,6 +22,14 @@ export default function ChatPanel() {
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+    const userId = localStorage.getItem("user_id") || "default";
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
     try {
 
@@ -29,10 +37,9 @@ export default function ChatPanel() {
         "http://127.0.0.1:8000/api/ai/chat",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers,
           body: JSON.stringify({
+            user_id: userId,
             messages: [
               {
                 role: "user",

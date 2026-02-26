@@ -33,19 +33,37 @@ class Retriever:
         embedding = embedder.embed(text)
         return vector_store.add_document(text=text, embedding=embedding, metadata=metadata)
 
-    def search(self, query: str, top_k: int = 5) -> List[Dict]:
+    def _matches_filters(self, metadata: Dict, filters: Optional[Dict]) -> bool:
+        if not filters:
+            return True
+
+        for key, expected_value in filters.items():
+            if metadata.get(key) != expected_value:
+                return False
+
+        return True
+
+    def search(self, query: str, top_k: int = 5, filters: Optional[Dict] = None) -> List[Dict]:
         query_embedding = embedder.embed(query)
         docs = vector_store.all_documents()
+        filter_user_id = (filters or {}).get("user_id")
 
         scored = []
         for doc in docs:
+            metadata = doc.get("metadata", {})
+            if filter_user_id and metadata.get("user_id") != filter_user_id:
+                # Hard guard: user-scoped search never returns docs without matching user_id.
+                continue
+            if not self._matches_filters(metadata, filters):
+                continue
+
             score = _cosine_similarity(query_embedding, doc.get("embedding", []))
             if score > 0:
                 scored.append(
                     {
                         "id": doc.get("id"),
                         "text": doc.get("text", ""),
-                        "metadata": doc.get("metadata", {}),
+                        "metadata": metadata,
                         "score": score,
                     }
                 )

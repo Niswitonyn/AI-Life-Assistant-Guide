@@ -29,7 +29,13 @@ USER_CONFIG_PATH = os.path.join(DATA_DIR, "user.json")
 def setup_status():
 
     ai_ready = os.path.exists(AI_CONFIG_PATH)
-    gmail_ready = os.path.exists(CREDENTIALS_FILE)
+    gmail_ready = (
+        os.path.exists(CREDENTIALS_FILE) or
+        (
+            os.path.exists(TOKENS_DIR) and
+            any(name.endswith("_gmail_token.json") for name in os.listdir(TOKENS_DIR))
+        )
+    )
     user_ready = os.path.exists(USER_CONFIG_PATH)
 
     return {

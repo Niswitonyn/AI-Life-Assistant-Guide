@@ -102,8 +102,12 @@ html, body, #root {
 }
 
 /* IDLE */
-.jarvis-container.idle .jarvis-core {
-  opacity: 0.9;
+.jarvis-container.idle {
+  opacity: 0.6;
+}
+
+.jarvis-container:hover {
+  opacity: 1;
 }
 
 /* -------------------------

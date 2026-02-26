@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     KEYS_DIR: str = str(KEYS_DIR_PATH)
     ENCRYPTION_KEY_PATH: str = str(KEYS_DIR_PATH / "secret.key")
+    JWT_SECRET_KEY: str = "change-this-jwt-secret"
+    JWT_EXPIRE_MINUTES: int = 10080
 
 
 # -------------------------

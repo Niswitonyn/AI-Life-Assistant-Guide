@@ -10,21 +10,22 @@ class PersonalizationEngine:
     def __init__(self, db: Session):
         self.db = db
 
-    def process_user_text(self, text: str):
+    def process_user_text(self, user_id: str, text: str):
 
         text_lower = text.lower()
 
         # Detect name
         if "my name is" in text_lower:
             name = text_lower.split("my name is")[-1].strip()
-            self.save_fact("name", name)
+            self.save_fact(user_id, "name", name)
 
-    def get_profile(self) -> dict:
+    def get_profile(self, user_id: str) -> dict:
         """
         Build latest personalization profile from stored system facts.
         """
         records = (
             self.db.query(ConversationMemory)
+            .filter(ConversationMemory.user_id == user_id)
             .filter(ConversationMemory.role == "system")
             .order_by(ConversationMemory.id.asc())
             .all()
@@ -45,9 +46,10 @@ class PersonalizationEngine:
 
         return profile
 
-    def save_fact(self, key: str, value: str):
+    def save_fact(self, user_id: str, key: str, value: str):
 
         memory = ConversationMemory(
+            user_id=user_id,
             role="system",
             content=f"{key}:{value}"
         )

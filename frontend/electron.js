@@ -1,9 +1,20 @@
-const { app, BrowserWindow, screen, session, ipcMain } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  screen,
+  session,
+  ipcMain,
+  powerMonitor,
+  safeStorage
+} = require("electron");
+const Store = require("electron-store");
 
 console.log("🚀 Electron starting...");
 
 let win = null;
 let chatWin = null;
+let fullscreenWatchTimer = null;
+const secureStore = new Store({ name: "jarvis-secure-store" });
 
 // =========================
 // SINGLE INSTANCE LOCK
@@ -82,6 +93,106 @@ function createChatWindow() {
 ipcMain.on("open-chat", () => {
   createChatWindow();
 });
+
+// =========================
+// OAUTH POPUP (ELECTRON NATIVE)
+// =========================
+
+ipcMain.handle("open-oauth-popup", async (_, url) => {
+  if (!url || typeof url !== "string") {
+    return { status: "error", message: "Invalid OAuth URL" };
+  }
+
+  const popup = new BrowserWindow({
+    width: 560,
+    height: 760,
+    parent: win || undefined,
+    modal: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+
+  await popup.loadURL(url);
+
+  return await new Promise((resolve) => {
+    popup.on("closed", () => resolve({ status: "closed" }));
+  });
+});
+
+// =========================
+// SECURE TOKEN STORAGE (ELECTRON)
+// =========================
+
+function encryptValue(plain) {
+  if (!safeStorage.isEncryptionAvailable()) return plain;
+  return safeStorage.encryptString(plain).toString("base64");
+}
+
+function decryptValue(encrypted) {
+  if (!safeStorage.isEncryptionAvailable()) return encrypted;
+  const buffer = Buffer.from(encrypted, "base64");
+  return safeStorage.decryptString(buffer);
+}
+
+ipcMain.handle("secure-set", (_, key, value) => {
+  if (!key) return { status: "error", message: "Missing key" };
+  const serialized = typeof value === "string" ? value : JSON.stringify(value);
+  secureStore.set(key, encryptValue(serialized));
+  return { status: "ok" };
+});
+
+ipcMain.handle("secure-get", (_, key) => {
+  if (!key) return { status: "error", message: "Missing key" };
+  const stored = secureStore.get(key);
+  if (!stored) return { status: "not_found" };
+
+  try {
+    const decrypted = decryptValue(stored);
+    try {
+      return { status: "ok", value: JSON.parse(decrypted) };
+    } catch {
+      return { status: "ok", value: decrypted };
+    }
+  } catch {
+    return { status: "error", message: "Could not decrypt value" };
+  }
+});
+
+ipcMain.handle("secure-delete", (_, key) => {
+  if (!key) return { status: "error", message: "Missing key" };
+  secureStore.delete(key);
+  return { status: "ok" };
+});
+
+// =========================
+// AUTO HIDE IN FULLSCREEN
+// =========================
+
+function watchFullscreen() {
+  if (fullscreenWatchTimer) {
+    clearInterval(fullscreenWatchTimer);
+  }
+
+  fullscreenWatchTimer = setInterval(() => {
+    if (!win || win.isDestroyed()) return;
+
+    const isFull =
+      win.isFullScreen() ||
+      win.isAlwaysOnTop() === false;
+
+    if (isFull) {
+      if (win.isVisible()) {
+        win.hide();
+      }
+    } else if (!win.isVisible()) {
+      win.showInactive();
+    }
+  }, 2000);
+}
 
 // =========================
 // MAIN WINDOW
@@ -165,6 +276,8 @@ function createWindow() {
 
   loadApp();
 
+  watchFullscreen();
+
   // Debug (remove in production)
   win.webContents.openDevTools({ mode: "detach" });
 }
@@ -173,13 +286,20 @@ function createWindow() {
 // APP EVENTS
 // =========================
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  powerMonitor.on("resume", watchFullscreen);
+});
 
 app.on("second-instance", () => {
   if (win) win.focus();
 });
 
 app.on("window-all-closed", () => {
+  if (fullscreenWatchTimer) {
+    clearInterval(fullscreenWatchTimer);
+    fullscreenWatchTimer = null;
+  }
   if (process.platform !== "darwin") {
     app.quit();
   }

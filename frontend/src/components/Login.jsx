@@ -4,8 +4,10 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const login = async () => {
+    setError("");
 
     const res = await fetch("http://127.0.0.1:8000/api/user/login", {
       method: "POST",
@@ -17,10 +19,13 @@ export default function Login() {
 
     const data = await res.json();
 
-    if (data.user_id) {
-      localStorage.setItem("user_id", data.user_id);
+    if (data.token && data.user_id) {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user_id", String(data.user_id));
       window.location.reload();
+      return;
     }
+    setError(data.detail || data.error || "Login failed");
   };
 
   return (
@@ -39,6 +44,7 @@ export default function Login() {
       />
 
       <button onClick={login}>Login</button>
+      {error && <p>{error}</p>}
     </div>
   );
 }

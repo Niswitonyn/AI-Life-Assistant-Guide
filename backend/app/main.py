@@ -24,9 +24,11 @@ from app.notifications.email_notifier import EmailNotifier
 from app.voice.voice_assistant import VoiceAssistant
 
 from app.api.routes_auth import router as auth_router
+from app.api.routes_user import router as user_router
 
 from app.api.voice import router as voice_router
 from app.api.routes_rag import router as rag_router
+from app.api.routes_gsuite import router as gsuite_router
 
 # -------------------------
 # GLOBAL SERVICES
@@ -177,8 +179,10 @@ app.include_router(ai_router, prefix="/api/ai", tags=["AI"])
 app.include_router(settings_router, prefix="/api/settings", tags=["Settings"])
 app.include_router(tasks_router, prefix="/api/tasks", tags=["Tasks"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+app.include_router(user_router, prefix="/api/user", tags=["User"])
 app.include_router(voice_router, prefix="/api")
 app.include_router(rag_router, prefix="/api/rag", tags=["RAG"])
+app.include_router(gsuite_router, prefix="/api/gsuite", tags=["Google"])
 
 
 # -------------------------

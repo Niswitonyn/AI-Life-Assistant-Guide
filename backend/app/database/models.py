@@ -33,6 +33,7 @@ class ConversationMemory(Base):
     __tablename__ = "conversation_memory"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True, default="default")
 
     role = Column(String(50))  # user / assistant
     content = Column(Text)

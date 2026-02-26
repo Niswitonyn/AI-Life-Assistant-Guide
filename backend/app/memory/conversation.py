@@ -8,8 +8,9 @@ class ConversationManager:
     """
 
     @staticmethod
-    def save_message(db: Session, role: str, content: str):
+    def save_message(db: Session, user_id: str, role: str, content: str):
         memory = ConversationMemory(
+            user_id=user_id,
             role=role,
             content=content,
         )
@@ -17,9 +18,10 @@ class ConversationManager:
         db.commit()
 
     @staticmethod
-    def get_recent_messages(db: Session, limit: int = 10):
+    def get_recent_messages(db: Session, user_id: str, limit: int = 10):
         messages = (
             db.query(ConversationMemory)
+            .filter(ConversationMemory.user_id == user_id)
             .order_by(ConversationMemory.timestamp.desc())
             .limit(limit)
             .all()

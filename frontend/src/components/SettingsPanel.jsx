@@ -47,22 +47,75 @@ export default function SettingsPanel() {
   const connectGmail = () => {
 
     const userId = localStorage.getItem("user_id") || "default";
+    const oauthUrl = `http://127.0.0.1:8000/api/auth/gmail/login?user_id=${userId}`;
 
     setConnecting(true);
     setMessage("");
 
-    const popup = window.open(
-      `http://127.0.0.1:8000/api/auth/connect-gmail?user_id=${userId}`,
-      "_blank"
-    );
+    let ipcRenderer = null;
+    try {
+      if (window.require) {
+        ipcRenderer = window.require("electron").ipcRenderer;
+      }
+    } catch {}
+
+    if (ipcRenderer) {
+      ipcRenderer.invoke("open-oauth-popup", oauthUrl)
+        .then(async () => {
+          try {
+            const profileRes = await fetch(
+              `http://127.0.0.1:8000/api/auth/gmail/profile?user_id=${userId}`
+            );
+            if (profileRes.ok) {
+              const profile = await profileRes.json();
+              if (profile.token) {
+                localStorage.setItem("token", profile.token);
+              }
+              if (profile.user_id) {
+                localStorage.setItem("user_id", String(profile.user_id));
+              }
+              await ipcRenderer.invoke("secure-set", "gmail_profile", profile);
+            }
+          } catch {}
+
+          loadStatus();
+          setConnecting(false);
+          setMessage("Gmail connected successfully");
+        })
+        .catch(() => {
+          setConnecting(false);
+          setMessage("OAuth popup failed");
+        });
+      return;
+    }
+
+    const popup = window.open(oauthUrl, "_blank");
+
+    if (!popup) {
+      setConnecting(false);
+      setMessage("Popup blocked. Allow popups and try again.");
+      return;
+    }
 
     const timer = setInterval(() => {
       if (popup.closed) {
         clearInterval(timer);
+        fetch(`http://127.0.0.1:8000/api/auth/gmail/profile?user_id=${userId}`)
+          .then((res) => res.ok ? res.json() : null)
+          .then((profile) => {
+            if (!profile) return;
+            if (profile.token) {
+              localStorage.setItem("token", profile.token);
+            }
+            if (profile.user_id) {
+              localStorage.setItem("user_id", String(profile.user_id));
+            }
+          })
+          .catch(() => {});
 
         loadStatus();
         setConnecting(false);
-        setMessage("✅ Gmail connected successfully");
+        setMessage("Gmail connected successfully");
       }
     }, 1000);
   };
@@ -203,3 +256,4 @@ export default function SettingsPanel() {
     </div>
   );
 } 
+

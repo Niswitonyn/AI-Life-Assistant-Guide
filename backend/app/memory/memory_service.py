@@ -15,8 +15,9 @@ class MemoryService:
     # -------------------------
     # Save message
     # -------------------------
-    def save_message(self, role: str, content: str):
+    def save_message(self, user_id: str, role: str, content: str):
         msg = ConversationMemory(
+            user_id=user_id,
             role=role,
             content=content
         )
@@ -26,9 +27,10 @@ class MemoryService:
     # -------------------------
     # Get recent messages
     # -------------------------
-    def get_recent_messages(self, limit: int = 10) -> List[Dict]:
+    def get_recent_messages(self, user_id: str, limit: int = 10) -> List[Dict]:
         messages = (
             self.db.query(ConversationMemory)
+            .filter(ConversationMemory.user_id == user_id)
             .order_by(ConversationMemory.id.desc())
             .limit(limit)
             .all()

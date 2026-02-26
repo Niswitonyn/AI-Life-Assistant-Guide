@@ -8,11 +8,11 @@ class ContextStore:
     """
 
     @staticmethod
-    def build_context(db: Session, new_messages: list):
+    def build_context(db: Session, user_id: str, new_messages: list):
         """
         Combine past memory + new user messages.
         """
 
-        history = ConversationManager.get_recent_messages(db)
+        history = ConversationManager.get_recent_messages(db, user_id=user_id)
 
         return history + new_messages

@@ -59,6 +59,34 @@ export default function JarvisAvatar() {
 
   }, [state, hovered]);
 
+  // =========================
+  // SMART PROXIMITY DETECTION
+  // =========================
+  useEffect(() => {
+    function handleMouseMove(e) {
+      const rect = document
+        .querySelector(".jarvis-container")
+        ?.getBoundingClientRect();
+
+      if (!rect) return;
+
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const dist = Math.hypot(
+        e.clientX - centerX,
+        e.clientY - centerY
+      );
+
+      const near = dist < 150;
+      setHovered(near);
+    }
+
+    window.addEventListener("mousemove", handleMouseMove);
+
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
 
   // =========================
   // CLEANUP
@@ -79,6 +107,8 @@ export default function JarvisAvatar() {
         .getTracks()
         .forEach(track => track.stop());
     }
+
+    try { speechSynthesis.cancel(); } catch {}
   }
 
 
@@ -217,9 +247,9 @@ export default function JarvisAvatar() {
 
       const data = await res.json();
 
-      const text = data.text || "";
+      const text = (data.text || "").trim();
 
-      if (text.length > 0) {
+      if (text.length > 1) {
 
         setState("thinking");
 
@@ -267,6 +297,20 @@ export default function JarvisAvatar() {
 
 
   function handleMouseDown() {
+    // Barge-in: stop TTS immediately when user starts speaking.
+    try { speechSynthesis.cancel(); } catch {}
+    if (state === "speaking") {
+      setState("idle");
+    }
+
+    // Prevent duplicate starts while the user is already holding.
+    if (isHoldingRef.current) return;
+
+    // If a previous capture is still active, close it first.
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+
     isHoldingRef.current = true;
     startListening();
   }
@@ -290,7 +334,18 @@ export default function JarvisAvatar() {
   // =========================
   // CHAT BACKEND
   // =========================
-  async function sendToBackend(message) {
+async function sendToBackend(message) {
+    const cleaned = (message || "").trim();
+    if (!cleaned) {
+      setState("idle");
+      return;
+    }
+    const userId = localStorage.getItem("user_id") || "default";
+    const token = localStorage.getItem("token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
     try {
 
@@ -298,17 +353,23 @@ export default function JarvisAvatar() {
         "http://127.0.0.1:8000/api/ai/chat",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
+            user_id: userId,
             messages: [
               {
                 role: "user",
-                content: message,
+                content: cleaned,
               },
             ],
           }),
         }
       );
+
+      if (!res.ok) {
+        setState("idle");
+        return;
+      }
 
       const data = await res.json();
 
@@ -329,11 +390,17 @@ export default function JarvisAvatar() {
   // SPEAK
   // =========================
   function speak(text) {
+    const cleaned = (text || "").trim();
+    if (!cleaned) {
+      setState("idle");
+      return;
+    }
 
     setState("speaking");
+    speechSynthesis.cancel();
 
     const utterance =
-      new SpeechSynthesisUtterance(text);
+      new SpeechSynthesisUtterance(cleaned);
 
     utterance.onend = () => {
 
@@ -370,7 +437,7 @@ export default function JarvisAvatar() {
       className={`jarvis-container ${state}`}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onMouseLeave={(e) => {
+      onMouseLeave={() => {
         handleMouseUp();
         setHovered(false);
       }}

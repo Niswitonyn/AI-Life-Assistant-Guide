@@ -12,10 +12,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TRANSCRIBE_TIMEOUT_SECONDS = int(os.getenv("VOICE_TRANSCRIBE_TIMEOUT_SECONDS", "20"))
+MIN_AUDIO_BYTES = int(os.getenv("VOICE_MIN_AUDIO_BYTES", "2000"))
+MIN_TRANSCRIPT_CHARS = int(os.getenv("VOICE_MIN_TRANSCRIPT_CHARS", "2"))
+WHISPER_BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "2"))
+WHISPER_BEST_OF = int(os.getenv("WHISPER_BEST_OF", "2"))
+WHISPER_TEMPERATURE = float(os.getenv("WHISPER_TEMPERATURE", "0.0"))
 
 # Load model once
 try:
-    model_size = os.getenv("WHISPER_MODEL_SIZE", "tiny")
+    model_size = os.getenv("WHISPER_MODEL_SIZE", "tiny.en")
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
     logger.info(
         f"Whisper model loaded successfully (model={model_size}, device=cpu, compute_type=int8)"
@@ -29,7 +34,9 @@ def _transcribe_file(path: str):
     segments, info = model.transcribe(
         path,
         language="en",
-        beam_size=1,
+        beam_size=WHISPER_BEAM_SIZE,
+        best_of=WHISPER_BEST_OF,
+        temperature=WHISPER_TEMPERATURE,
         vad_filter=True,
         condition_on_previous_text=False,
         without_timestamps=True,
@@ -54,11 +61,15 @@ async def voice_chat(audio: UploadFile = File(...)):
         # Save temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
             content = await audio.read()
+            if not content:
+                raise HTTPException(status_code=400, detail="Empty audio payload")
             tmp.write(content)
             temp_path = tmp.name
 
         file_size = os.path.getsize(temp_path)
         logger.info(f"Temp file saved: {temp_path}, size: {file_size} bytes")
+        if file_size < MIN_AUDIO_BYTES:
+            raise HTTPException(status_code=422, detail="Audio too short")
 
         logger.info("Transcribing audio...")
         try:
@@ -82,6 +93,9 @@ async def voice_chat(audio: UploadFile = File(...)):
         except Exception as e:
             logger.error(f"Transcription failed: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
+        if len(text.strip()) < MIN_TRANSCRIPT_CHARS:
+            raise HTTPException(status_code=422, detail="No speech detected")
 
         return {"text": text}
 

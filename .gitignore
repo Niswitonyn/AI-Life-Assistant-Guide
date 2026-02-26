@@ -8,12 +8,21 @@ build
 
 # Environment
 .env
+.env.*
 
 # Tokens / secrets
 tokens/
-*.json
 
 # Backend sensitive
 backend/app/config/credentials.json
-backend/app/data/
 backend/data/
+backend/app/data/tokens/
+backend/app/data/database/
+backend/app/data/credentials/
+backend/app/data/*.json
+!backend/app/data/*.example.json
+!backend/app/data/contact_manager.py
+
+# Python
+__pycache__/
+*.pyc
