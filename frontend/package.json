@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "main": "electron.js",
-
   "scripts": {
     "dev": "vite",
     "electron": "wait-on http://localhost:5173 && electron .",
@@ -11,12 +10,13 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-
   "dependencies": {
+    "electron-store": "^11.0.2",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.13.1",
+    "vosk-browser": "^0.0.8"
   },
-
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
     "concurrently": "^8.0.0",

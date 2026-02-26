@@ -1,0 +1,23 @@
+.setup-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 40px;
+  color: #00e5ff;
+  font-family: Orbitron, sans-serif;
+}
+
+.setup-container input,
+.setup-container select {
+  padding: 10px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid #00e5ff;
+  color: white;
+}
+
+.setup-container button {
+  padding: 10px;
+  background: #00e5ff;
+  border: none;
+  cursor: pointer;
+}

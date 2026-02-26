@@ -12,7 +12,6 @@ html, body, #root {
   color: #00e5ff;
 }
 
-
 /* -------------------------
    JARVIS CONTAINER
 ------------------------- */
@@ -25,16 +24,15 @@ html, body, #root {
   z-index: 9999;
   cursor: pointer;
 
-  -webkit-app-region: drag;   /* ⭐ enables Electron drag */
+  -webkit-app-region: drag;   /* ⭐ allows window drag */
 }
 
-
-/* Smooth transitions */
+/* ⭐ IMPORTANT — allow clicking Jarvis */
 .jarvis-core,
 .jarvis-ring {
+  -webkit-app-region: no-drag;   /* enables mouse click */
   transition: all 0.3s ease;
 }
-
 
 /* -------------------------
    OUTER RING
@@ -53,7 +51,6 @@ html, body, #root {
 
   animation: rotate 8s linear infinite;
 }
-
 
 /* -------------------------
    INNER CORE
@@ -76,6 +73,9 @@ html, body, #root {
   animation: pulse 2s infinite;
 }
 
+.jarvis-container:hover .jarvis-core {
+  transform: scale(1.15);
+}
 
 /* -------------------------
    STATES
@@ -90,25 +90,21 @@ html, body, #root {
     0 0 120px rgba(0,229,255,0.9);
 }
 
-
 /* THINKING */
 .jarvis-container.thinking .jarvis-ring {
   animation: rotate 1s linear infinite;
   border-color: rgba(0, 255, 255, 0.9);
 }
 
-
 /* SPEAKING */
 .jarvis-container.speaking .jarvis-core {
   animation: pulse 0.8s infinite;
 }
 
-
-/* IDLE (optional subtle glow) */
+/* IDLE */
 .jarvis-container.idle .jarvis-core {
   opacity: 0.9;
 }
-
 
 /* -------------------------
    ANIMATIONS
