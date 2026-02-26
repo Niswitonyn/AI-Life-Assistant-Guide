@@ -6,10 +6,9 @@ from sqlalchemy.orm import Session
 from fastapi import Depends
 from app.database.db import get_db
 from app.automation.task_agent import TaskAgent
-from app.memory.conversation import ConversationManager
-from app.memory.context_store import ContextStore
 from app.memory.memory_service import MemoryService
 from app.memory.personalization import PersonalizationEngine
+from app.rag.retriever import retriever
 
 
 
@@ -35,6 +34,43 @@ class ChatResponse(BaseModel):
     response: str
 
 
+def _build_profile_prompt(profile: Dict[str, str]) -> Optional[Dict[str, str]]:
+    if not profile:
+        return None
+
+    lines = [f"{key}: {value}" for key, value in profile.items()]
+    return {
+        "role": "system",
+        "content": (
+            "Known user profile facts (use for personalization when relevant):\n"
+            + "\n".join(lines)
+        )
+    }
+
+
+def _build_rag_prompt(hits: List[Dict]) -> Optional[Dict[str, str]]:
+    if not hits:
+        return None
+
+    context_lines = []
+    for idx, hit in enumerate(hits, start=1):
+        snippet = hit.get("text", "").strip()
+        if not snippet:
+            continue
+        context_lines.append(f"{idx}. {snippet}")
+
+    if not context_lines:
+        return None
+
+    return {
+        "role": "system",
+        "content": (
+            "Relevant memory context (use when helpful, ignore if irrelevant):\n"
+            + "\n".join(context_lines)
+        )
+    }
+
+
 # -------------------------
 # Routes
 # -------------------------
@@ -45,7 +81,8 @@ async def chat_endpoint(
     db: Session = Depends(get_db)
 ):
     try:
-        from app.memory.memory_service import MemoryService
+        if not request.messages:
+            raise HTTPException(status_code=400, detail="messages cannot be empty")
 
         provider = provider_factory.get_provider(
             provider_name=request.provider,
@@ -53,9 +90,10 @@ async def chat_endpoint(
         )
 
         memory = MemoryService(db)
+        engine = PersonalizationEngine(db)
 
         # -------------------------
-        # Load Past Memory
+        # 1) Get recent messages
         # -------------------------
         past_messages = memory.get_recent_messages(limit=10)
 
@@ -64,11 +102,25 @@ async def chat_endpoint(
             for msg in request.messages
         ]
 
-        # Combine memory + new
-        messages = past_messages + new_messages
+        latest_user_message = next(
+            (msg.content for msg in reversed(request.messages) if msg.role == "user"),
+            request.messages[-1].content
+        )
 
         # -------------------------
-        # Jarvis System Prompt
+        # 2) Get RAG hits
+        # -------------------------
+        rag_hits = retriever.search(query=latest_user_message, top_k=3)
+        rag_prompt = _build_rag_prompt(rag_hits)
+
+        # -------------------------
+        # 3) Get personalization profile
+        # -------------------------
+        profile = engine.get_profile()
+        profile_prompt = _build_profile_prompt(profile)
+
+        # -------------------------
+        # 4) Build system prompt
         # -------------------------
         system_prompt = {
             "role": "system",
@@ -80,25 +132,34 @@ async def chat_endpoint(
             )
         }
 
-        messages = [system_prompt] + messages
+        messages = [system_prompt]
+        if profile_prompt:
+            messages.append(profile_prompt)
+        if rag_prompt:
+            messages.append(rag_prompt)
+        messages += past_messages + new_messages
 
         # -------------------------
-        # AI Response
+        # 5) Call LLM
         # -------------------------
         response = await provider.generate_response(messages)
 
         # -------------------------
-        # Save Conversation
+        # 6) Save conversation
         # -------------------------
-        user_text = request.messages[-1].content
-
+        user_text = latest_user_message
         memory.save_message("user", user_text)
         memory.save_message("assistant", response)
 
         # -------------------------
-        # Personalization Engine
+        # 7) Update RAG
         # -------------------------
-        engine = PersonalizationEngine(db)
+        retriever.add_text(user_text, metadata={"role": "user", "kind": "chat"})
+        retriever.add_text(response, metadata={"role": "assistant", "kind": "chat"})
+
+        # -------------------------
+        # 8) Update personalization
+        # -------------------------
         engine.process_user_text(user_text)
 
         # -------------------------

@@ -25,6 +25,9 @@ from app.voice.voice_assistant import VoiceAssistant
 
 from app.api.routes_auth import router as auth_router
 
+from app.api.voice import router as voice_router
+from app.api.routes_rag import router as rag_router
+
 # -------------------------
 # GLOBAL SERVICES
 # -------------------------
@@ -76,7 +79,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "*"  # Allow Electron origins
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -171,6 +177,8 @@ app.include_router(ai_router, prefix="/api/ai", tags=["AI"])
 app.include_router(settings_router, prefix="/api/settings", tags=["Settings"])
 app.include_router(tasks_router, prefix="/api/tasks", tags=["Tasks"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+app.include_router(voice_router, prefix="/api")
+app.include_router(rag_router, prefix="/api/rag", tags=["RAG"])
 
 
 # -------------------------
