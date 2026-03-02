@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiUrl } from "../../config/api";
 
 export default function UserSetup({ next }) {
 
@@ -6,7 +7,7 @@ export default function UserSetup({ next }) {
 
   const handleNext = async () => {
 
-    await fetch("http://127.0.0.1:8000/api/setup/user", {
+    await fetch(apiUrl("/api/setup/user"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

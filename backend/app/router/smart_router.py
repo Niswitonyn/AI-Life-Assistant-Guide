@@ -1,6 +1,6 @@
 import requests
 import json
-import os
+from app.config.paths import CONTACTS_FILE
 
 from app.agents.gmail_agent import GmailAgent
 
@@ -78,13 +78,9 @@ RECENT CONVERSATION:
     # -------------------------
     def load_contacts(self):
 
-        base_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..")
-        )
+        contacts_path = CONTACTS_FILE
 
-        contacts_path = os.path.join(base_dir, "data", "contacts.json")
-
-        if os.path.exists(contacts_path):
+        if contacts_path.exists():
             with open(contacts_path, "r") as f:
                 return json.load(f)
 

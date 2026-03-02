@@ -5,10 +5,17 @@ frontend/node_modules
 # Build
 dist
 build
+frontend/release/
+backend/build/
+backend/dist/
+build-vs/
 
 # Environment
 .env
 .env.*
+!.env.example
+!frontend/.env.example
+backend/.venv/
 
 # Tokens / secrets
 tokens/

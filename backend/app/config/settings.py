@@ -1,20 +1,9 @@
-from pathlib import Path
 from pydantic_settings import BaseSettings
+from app.config.paths import DATA_DIR, DB_DIR, LOG_DIR, KEYS_DIR_PATH
 
 
 # -------------------------
 # BASE PATHS
-# -------------------------
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
-DATA_DIR = BASE_DIR / "data"
-DB_DIR = DATA_DIR / "database"
-LOG_DIR = DATA_DIR / "logs"
-KEYS_DIR_PATH = DATA_DIR / "keys"
-
-
-# -------------------------
-# SETTINGS CLASS
 # -------------------------
 class Settings(BaseSettings):
 

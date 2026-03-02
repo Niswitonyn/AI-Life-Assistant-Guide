@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./ChatPanel.css";
+import { apiUrl } from "../config/api";
 
 export default function ChatPanel() {
 
@@ -34,7 +35,7 @@ export default function ChatPanel() {
     try {
 
       const res = await fetch(
-        "http://127.0.0.1:8000/api/ai/chat",
+        apiUrl("/api/ai/chat"),
         {
           method: "POST",
           headers,

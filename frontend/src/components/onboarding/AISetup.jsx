@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiUrl } from "../../config/api";
 
 export default function AISetup({ next }) {
 
@@ -12,7 +13,7 @@ export default function AISetup({ next }) {
       return;
     }
 
-    await fetch("http://127.0.0.1:8000/api/setup/ai", {
+    await fetch(apiUrl("/api/setup/ai"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

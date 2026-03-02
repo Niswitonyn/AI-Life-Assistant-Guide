@@ -1,26 +1,16 @@
 import os
 import json
 from fastapi import APIRouter, UploadFile, File, Body
-
-router = APIRouter()
-
-# -------------------------
-# PATHS
-# -------------------------
-BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..")
+from app.config.paths import (
+    DATA_DIR,
+    CREDENTIALS_DIR,
+    CREDENTIALS_FILE,
+    TOKENS_DIR,
+    AI_CONFIG_PATH,
+    USER_CONFIG_PATH,
 )
 
-DATA_DIR = os.path.join(BASE_DIR, "data")
-
-CREDENTIALS_DIR = os.path.join(DATA_DIR, "credentials")
-CREDENTIALS_FILE = os.path.join(CREDENTIALS_DIR, "credentials.json")
-
-TOKENS_DIR = os.path.join(DATA_DIR, "tokens")
-
-AI_CONFIG_PATH = os.path.join(DATA_DIR, "ai_config.json")
-USER_CONFIG_PATH = os.path.join(DATA_DIR, "user.json")
-
+router = APIRouter()
 
 # -------------------------
 # STATUS CHECK
@@ -28,15 +18,15 @@ USER_CONFIG_PATH = os.path.join(DATA_DIR, "user.json")
 @router.get("/status")
 def setup_status():
 
-    ai_ready = os.path.exists(AI_CONFIG_PATH)
+    ai_ready = AI_CONFIG_PATH.exists()
     gmail_ready = (
-        os.path.exists(CREDENTIALS_FILE) or
+        CREDENTIALS_FILE.exists() or
         (
-            os.path.exists(TOKENS_DIR) and
+            TOKENS_DIR.exists() and
             any(name.endswith("_gmail_token.json") for name in os.listdir(TOKENS_DIR))
         )
     )
-    user_ready = os.path.exists(USER_CONFIG_PATH)
+    user_ready = USER_CONFIG_PATH.exists()
 
     return {
         "configured": ai_ready and gmail_ready and user_ready,
@@ -52,9 +42,9 @@ def setup_status():
 @router.post("/user")
 async def setup_user(data: dict = Body(...)):
 
-    os.makedirs(DATA_DIR, exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    with open(USER_CONFIG_PATH, "w") as f:
+    with open(USER_CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
     return {"status": "user saved"}
@@ -66,7 +56,7 @@ async def setup_user(data: dict = Body(...)):
 @router.post("/gmail")
 async def setup_gmail(file: UploadFile = File(...)):
 
-    os.makedirs(CREDENTIALS_DIR, exist_ok=True)
+    CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
 
     with open(CREDENTIALS_FILE, "wb") as f:
         f.write(await file.read())
@@ -80,9 +70,9 @@ async def setup_gmail(file: UploadFile = File(...)):
 @router.post("/ai")
 async def setup_ai(data: dict = Body(...)):
 
-    os.makedirs(DATA_DIR, exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    with open(AI_CONFIG_PATH, "w") as f:
+    with open(AI_CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
     return {"status": "ai config saved"}
@@ -98,12 +88,12 @@ async def setup_ai(data: dict = Body(...)):
 @router.post("/disconnect-gmail")
 def disconnect_gmail():
 
-    if os.path.exists(TOKENS_DIR):
+    if TOKENS_DIR.exists():
         for f in os.listdir(TOKENS_DIR):
-            os.remove(os.path.join(TOKENS_DIR, f))
+            (TOKENS_DIR / f).unlink(missing_ok=True)
 
-    if os.path.exists(CREDENTIALS_FILE):
-        os.remove(CREDENTIALS_FILE)
+    if CREDENTIALS_FILE.exists():
+        CREDENTIALS_FILE.unlink(missing_ok=True)
 
     return {"status": "gmail disconnected"}
 
@@ -114,7 +104,7 @@ def disconnect_gmail():
 @router.post("/reconnect-ai")
 def reconnect_ai():
 
-    if os.path.exists(AI_CONFIG_PATH):
-        os.remove(AI_CONFIG_PATH)
+    if AI_CONFIG_PATH.exists():
+        AI_CONFIG_PATH.unlink(missing_ok=True)
 
     return {"status": "ai reset"}

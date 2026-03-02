@@ -9,17 +9,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from app.agents.gmail_agent import GmailAgent
+from app.config.paths import DATA_DIR, TOKENS_DIR, CREDENTIALS_FILE, USERS_FILE
 from app.core.auth import create_token
 from app.database.db import SessionLocal
 from app.models.user import User
 
 router = APIRouter()
-
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-TOKENS_DIR = os.path.join(DATA_DIR, "tokens")
-CREDENTIALS_FILE = os.path.join(DATA_DIR, "credentials", "credentials.json")
-USERS_FILE = os.path.join(DATA_DIR, "pubsub_users.json")
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
@@ -64,22 +59,22 @@ def _upsert_google_user(email: str | None, name: str | None) -> User | None:
 
 
 def _ensure_token_file(user_id: str, creds: Credentials) -> str:
-    os.makedirs(TOKENS_DIR, exist_ok=True)
-    token_path = os.path.join(TOKENS_DIR, f"{user_id}_gmail_token.json")
+    TOKENS_DIR.mkdir(parents=True, exist_ok=True)
+    token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
     with open(token_path, "w", encoding="utf-8") as f:
         f.write(creds.to_json())
-    return token_path
+    return str(token_path)
 
 
 @router.get("/gmail/login")
 def gmail_login(user_id: str = "default"):
-    if not os.path.exists(CREDENTIALS_FILE):
+    if not CREDENTIALS_FILE.exists():
         raise HTTPException(
             status_code=400,
             detail="Missing credentials file at app/data/credentials/credentials.json",
         )
 
-    flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
+    flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_FILE), SCOPES)
     creds = flow.run_local_server(port=0)
 
     profile_api = build("oauth2", "v2", credentials=creds)
@@ -102,8 +97,8 @@ def gmail_login(user_id: str = "default"):
         history_id = watch_response.get("historyId")
         watch_enabled = True
 
-        os.makedirs(DATA_DIR, exist_ok=True)
-        if os.path.exists(USERS_FILE):
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        if USERS_FILE.exists():
             with open(USERS_FILE, "r", encoding="utf-8") as f:
                 users = json.load(f)
         else:
@@ -133,11 +128,11 @@ def connect_gmail(user_id: str = "default"):
 
 @router.get("/gmail/profile")
 def gmail_profile(user_id: str = "default"):
-    token_path = os.path.join(TOKENS_DIR, f"{user_id}_gmail_token.json")
-    if not os.path.exists(token_path):
+    token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
+    if not token_path.exists():
         raise HTTPException(status_code=404, detail="Gmail token not found")
 
-    creds = Credentials.from_authorized_user_file(token_path)
+    creds = Credentials.from_authorized_user_file(str(token_path))
     if not creds.valid:
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -166,11 +161,11 @@ def gmail_profile(user_id: str = "default"):
 
 @router.post("/gmail/refresh")
 def gmail_refresh_token(user_id: str = "default"):
-    token_path = os.path.join(TOKENS_DIR, f"{user_id}_gmail_token.json")
-    if not os.path.exists(token_path):
+    token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
+    if not token_path.exists():
         raise HTTPException(status_code=404, detail="Gmail token not found")
 
-    creds = Credentials.from_authorized_user_file(token_path)
+    creds = Credentials.from_authorized_user_file(str(token_path))
     if not creds.refresh_token:
         raise HTTPException(status_code=400, detail="No refresh token available")
 

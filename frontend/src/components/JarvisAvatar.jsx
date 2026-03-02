@@ -1,7 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import "./Jarvis.css";
+import { apiUrl } from "../config/api";
 
 export default function JarvisAvatar() {
+  const HOLD_TO_TALK_DELAY_MS = 180;
+  const CORE_HIT_RADIUS_PX = 70;
 
   const [state, setState] = useState("idle");
   const [hovered, setHovered] = useState(false);
@@ -15,6 +18,8 @@ export default function JarvisAvatar() {
 
   const forceBackendSttRef = useRef(false);
   const isSendingAudioRef = useRef(false);
+  const holdTimerRef = useRef(null);
+  const didStartListeningRef = useRef(false);
 
   // =========================
   // INIT
@@ -92,6 +97,10 @@ export default function JarvisAvatar() {
   // CLEANUP
   // =========================
   function cleanupAudio() {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
 
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch {}
@@ -233,7 +242,7 @@ export default function JarvisAvatar() {
       formData.append("audio", audioBlob, "recording.webm");
 
       const res = await fetch(
-        "http://127.0.0.1:8000/api/voice",
+        apiUrl("/api/voice"),
         {
           method: "POST",
           body: formData,
@@ -296,7 +305,14 @@ export default function JarvisAvatar() {
   }
 
 
-  function handleMouseDown() {
+  function handleMouseDown(e) {
+    const target = e.currentTarget;
+    const rect = target.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dist = Math.hypot((e.clientX || 0) - cx, (e.clientY || 0) - cy);
+    if (dist > CORE_HIT_RADIUS_PX) return;
+
     // Barge-in: stop TTS immediately when user starts speaking.
     try { speechSynthesis.cancel(); } catch {}
     if (state === "speaking") {
@@ -312,13 +328,32 @@ export default function JarvisAvatar() {
     }
 
     isHoldingRef.current = true;
-    startListening();
+    didStartListeningRef.current = false;
+
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+    }
+    holdTimerRef.current = setTimeout(() => {
+      if (!isHoldingRef.current) return;
+      didStartListeningRef.current = true;
+      startListening();
+    }, HOLD_TO_TALK_DELAY_MS);
   }
 
 
   function handleMouseUp() {
 
+    if (!isHoldingRef.current) return;
     isHoldingRef.current = false;
+
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
+    // Ignore quick taps to reduce accidental activation.
+    if (!didStartListeningRef.current) return;
+    didStartListeningRef.current = false;
 
     if (!forceBackendSttRef.current && recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch {}
@@ -350,7 +385,7 @@ async function sendToBackend(message) {
     try {
 
       const res = await fetch(
-        "http://127.0.0.1:8000/api/ai/chat",
+        apiUrl("/api/ai/chat"),
         {
           method: "POST",
           headers,
@@ -418,7 +453,9 @@ async function sendToBackend(message) {
   // =========================
   // OPEN CHAT WINDOW
   // =========================
-  function openChat() {
+  function openChat(e) {
+    // Require Shift + double click to avoid accidental popups.
+    if (!e?.shiftKey) return;
 
     try {
       if (window.require) {
@@ -443,6 +480,7 @@ async function sendToBackend(message) {
       }}
       onMouseEnter={() => setHovered(true)}
       onDoubleClick={openChat}
+      title="Hold to talk. Shift + double-click to open chat."
     >
       <div className="jarvis-ring"></div>
       <div className="jarvis-core"></div>

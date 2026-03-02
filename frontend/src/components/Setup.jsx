@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./Setup.css";
+import { apiUrl } from "../config/api";
 
 export default function Setup() {
 
@@ -12,7 +13,7 @@ export default function Setup() {
     try {
 
       const res = await fetch(
-        "http://127.0.0.1:8000/api/setup/ai",
+        apiUrl("/api/setup/ai"),
         {
           method: "POST",
           headers: {
@@ -27,7 +28,7 @@ export default function Setup() {
 
       if (res.ok) {
         alert("Setup saved ✅");
-        window.location.href = "/";
+        window.location.hash = "/";
       }
 
     } catch (err) {
@@ -38,7 +39,7 @@ export default function Setup() {
   function loginGmail() {
     const userId = localStorage.getItem("user_id") || "default";
     const popup = window.open(
-      `http://127.0.0.1:8000/api/auth/gmail/login?user_id=${userId}`,
+      `${apiUrl("/api/auth/gmail/login")}?user_id=${userId}`,
       "_blank"
     );
 
@@ -50,7 +51,7 @@ export default function Setup() {
     const timer = setInterval(() => {
       if (popup.closed) {
         clearInterval(timer);
-        fetch(`http://127.0.0.1:8000/api/auth/gmail/profile?user_id=${userId}`)
+        fetch(`${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`)
           .then((res) => res.ok ? res.json() : null)
           .then((profile) => {
             if (profile?.token) {

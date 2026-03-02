@@ -4,28 +4,37 @@ import { HashRouter as Router, Routes, Route } from "react-router-dom";
 import JarvisAvatar from "./components/JarvisAvatar";
 import ChatPanel from "./components/ChatPanel";
 import Setup from "./components/Setup";
+import { apiUrl } from "./config/api";
 
 function App() {
 
-  const [ready, setReady] = useState(false);
+  const isElectron =
+    typeof navigator !== "undefined" &&
+    navigator.userAgent.toLowerCase().includes("electron");
+  const [ready, setReady] = useState(isElectron);
 
   useEffect(() => {
+    if (isElectron) {
+      return;
+    }
 
     async function checkSetup() {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       try {
 
         const res = await fetch(
-          "http://127.0.0.1:8000/api/setup/status"
+          apiUrl("/api/setup/status"),
+          { signal: controller.signal }
         );
 
         const data = await res.json();
 
         if (!data.configured) {
-          window.location.href = "#/setup";
-        } else {
-          setReady(true);
+          window.location.hash = "/setup";
         }
+        setReady(true);
 
       } catch (err) {
 
@@ -33,12 +42,14 @@ function App() {
 
         // allow app anyway if backend not reachable
         setReady(true);
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
     checkSetup();
 
-  }, []);
+  }, [isElectron]);
 
   // Prevent render until check complete
   if (!ready) return null;

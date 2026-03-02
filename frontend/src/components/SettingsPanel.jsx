@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "../config/api";
 
 export default function SettingsPanel() {
 
@@ -18,7 +19,7 @@ export default function SettingsPanel() {
   // LOAD STATUS
   // -------------------------
   const loadStatus = () => {
-    fetch("http://127.0.0.1:8000/api/setup/status")
+    fetch(apiUrl("/api/setup/status"))
       .then(res => res.json())
       .then(data => setStatus(data))
       .catch(() => {});
@@ -32,7 +33,7 @@ export default function SettingsPanel() {
   // SAVE USER
   // -------------------------
   const saveUser = async () => {
-    await fetch("http://127.0.0.1:8000/api/setup/user", {
+    await fetch(apiUrl("/api/setup/user"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name })
@@ -47,7 +48,7 @@ export default function SettingsPanel() {
   const connectGmail = () => {
 
     const userId = localStorage.getItem("user_id") || "default";
-    const oauthUrl = `http://127.0.0.1:8000/api/auth/gmail/login?user_id=${userId}`;
+    const oauthUrl = `${apiUrl("/api/auth/gmail/login")}?user_id=${userId}`;
 
     setConnecting(true);
     setMessage("");
@@ -64,7 +65,7 @@ export default function SettingsPanel() {
         .then(async () => {
           try {
             const profileRes = await fetch(
-              `http://127.0.0.1:8000/api/auth/gmail/profile?user_id=${userId}`
+              `${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`
             );
             if (profileRes.ok) {
               const profile = await profileRes.json();
@@ -100,7 +101,7 @@ export default function SettingsPanel() {
     const timer = setInterval(() => {
       if (popup.closed) {
         clearInterval(timer);
-        fetch(`http://127.0.0.1:8000/api/auth/gmail/profile?user_id=${userId}`)
+        fetch(`${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`)
           .then((res) => res.ok ? res.json() : null)
           .then((profile) => {
             if (!profile) return;
@@ -125,7 +126,7 @@ export default function SettingsPanel() {
   // -------------------------
   const disconnectGmail = async () => {
 
-    await fetch("http://127.0.0.1:8000/api/setup/disconnect-gmail", {
+    await fetch(apiUrl("/api/setup/disconnect-gmail"), {
       method: "POST"
     });
 
@@ -137,7 +138,7 @@ export default function SettingsPanel() {
   // -------------------------
   const reconnectAI = async () => {
 
-    await fetch("http://127.0.0.1:8000/api/setup/reconnect-ai", {
+    await fetch(apiUrl("/api/setup/reconnect-ai"), {
       method: "POST"
     });
 

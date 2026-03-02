@@ -1,25 +1,18 @@
-import os
 import json
 import re
+from app.config.paths import CONTACTS_FILE
 
 
 class ContactManager:
 
     def __init__(self):
+        self.contacts_path = CONTACTS_FILE
 
-        base_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..")
-        )
-
-        self.contacts_path = os.path.join(
-            base_dir, "data", "contacts.json"
-        )
-
-        os.makedirs(os.path.dirname(self.contacts_path), exist_ok=True)
+        self.contacts_path.parent.mkdir(parents=True, exist_ok=True)
 
     def load_contacts(self):
 
-        if os.path.exists(self.contacts_path):
+        if self.contacts_path.exists():
             with open(self.contacts_path, "r") as f:
                 return json.load(f)
 

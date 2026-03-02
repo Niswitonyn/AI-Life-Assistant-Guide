@@ -1,5 +1,5 @@
-import os
 import json
+from app.config.paths import USERS_FILE
 
 def start_watch_for_user(user_id, gmail_agent):
 
@@ -12,16 +12,16 @@ def start_watch_for_user(user_id, gmail_agent):
         "historyId": response.get("historyId")
     }
 
-    path = "app/data/pubsub_users.json"
+    path = USERS_FILE
 
-    if os.path.exists(path):
-        with open(path, "r") as f:
+    if path.exists():
+        with open(path, "r", encoding="utf-8") as f:
             users = json.load(f)
     else:
         users = {}
 
     users[user_id] = data
 
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(users, f, indent=2)
         

@@ -1,10 +1,10 @@
-import os
 from datetime import datetime
 from typing import List, Dict
 
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from app.config.paths import TOKENS_DIR
 
 
 class CalendarAgent:
@@ -13,14 +13,7 @@ class CalendarAgent:
     def __init__(self, user_id: str = "default"):
         self.user_id = user_id
 
-        base_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..")
-        )
-
-        self.token_path = os.path.join(
-            base_dir, "..", "data", "tokens",
-            f"{user_id}_gmail_token.json"
-        )
+        self.token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
 
         if not os.path.exists(self.token_path):
             raise RuntimeError("No Gmail token found. Please connect Gmail first.")
@@ -29,7 +22,7 @@ class CalendarAgent:
 
     def authenticate(self):
         creds = Credentials.from_authorized_user_file(
-            self.token_path
+            str(self.token_path)
         )
 
         if not creds.valid:

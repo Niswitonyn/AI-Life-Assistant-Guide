@@ -23,6 +23,9 @@ html, body, #root {
   height: 160px;
   z-index: 9999;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 
   -webkit-app-region: drag;   /* ⭐ allows window drag */
 }
@@ -70,7 +73,7 @@ html, body, #root {
     0 0 40px #00e5ff,
     0 0 60px rgba(0,229,255,0.6);
 
-  animation: pulse 2s infinite;
+  animation: idleCore 3.5s ease-in-out infinite;
 }
 
 .jarvis-container:hover .jarvis-core {
@@ -83,7 +86,7 @@ html, body, #root {
 
 /* LISTENING */
 .jarvis-container.listening .jarvis-core {
-  transform: scale(1.2);
+  animation: listeningZoom 0.7s ease-in-out infinite;
   box-shadow:
     0 0 40px #00e5ff,
     0 0 80px #00e5ff,
@@ -103,7 +106,21 @@ html, body, #root {
 
 /* IDLE */
 .jarvis-container.idle {
-  opacity: 0.6;
+  opacity: 0.92;
+}
+
+.jarvis-container.idle .jarvis-core {
+  animation: none;
+  transform: scale(1);
+}
+
+.jarvis-container.idle .jarvis-ring {
+  animation: rotate 14s linear infinite;
+  border-color: rgba(0, 229, 255, 0.45);
+  box-shadow:
+    0 0 8px #00e5ff,
+    0 0 18px rgba(0, 229, 255, 0.45),
+    inset 0 0 10px rgba(0,229,255,0.35);
 }
 
 .jarvis-container:hover {
@@ -123,4 +140,16 @@ html, body, #root {
   0%   { transform: scale(1); opacity: 0.9; }
   50%  { transform: scale(1.15); opacity: 1; }
   100% { transform: scale(1); opacity: 0.9; }
+}
+
+@keyframes idleCore {
+  0%   { transform: scale(1); opacity: 0.95; }
+  50%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.95; }
+}
+
+@keyframes listeningZoom {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.24); }
+  100% { transform: scale(1); }
 }

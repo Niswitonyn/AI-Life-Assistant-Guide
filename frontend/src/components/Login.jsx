@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiUrl } from "../config/api";
 
 export default function Login() {
 
@@ -9,7 +10,7 @@ export default function Login() {
   const login = async () => {
     setError("");
 
-    const res = await fetch("http://127.0.0.1:8000/api/user/login", {
+    const res = await fetch(apiUrl("/api/user/login"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

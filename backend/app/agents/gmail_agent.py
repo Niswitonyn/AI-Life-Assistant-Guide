@@ -7,6 +7,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 
+from app.config.paths import TOKENS_DIR, CREDENTIALS_FILE
 from app.data.contact_manager import ContactManager
 
 
@@ -18,23 +19,10 @@ class GmailAgent:
 
         self.user_id = user_id
 
-        base_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..")
-        )
+        self.credentials_path = str(CREDENTIALS_FILE)
+        self.token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
 
-        # -------------------------
-        # PATHS
-        # -------------------------
-        self.credentials_path = os.path.join(
-            base_dir, "config", "credentials.json"
-        )
-
-        self.token_path = os.path.join(
-            base_dir, "..", "data", "tokens",
-            f"{user_id}_gmail_token.json"
-        )
-
-        os.makedirs(os.path.dirname(self.token_path), exist_ok=True)
+        self.token_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Contact manager
         self.contacts = ContactManager()
@@ -49,9 +37,9 @@ class GmailAgent:
 
         creds = None
 
-        if os.path.exists(self.token_path):
+        if self.token_path.exists():
             creds = Credentials.from_authorized_user_file(
-                self.token_path, self.SCOPES
+                str(self.token_path), self.SCOPES
             )
 
         if not creds or not creds.valid:
@@ -61,7 +49,7 @@ class GmailAgent:
 
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_path,
+                    str(self.credentials_path),
                     self.SCOPES
                 )
                 creds = flow.run_local_server(port=0)

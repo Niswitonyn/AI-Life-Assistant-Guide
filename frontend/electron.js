@@ -1,3 +1,6 @@
+const path = require("path");
+const fs = require("fs");
+const { spawn } = require("child_process");
 const {
   app,
   BrowserWindow,
@@ -5,60 +8,53 @@ const {
   session,
   ipcMain,
   powerMonitor,
-  safeStorage
+  safeStorage,
 } = require("electron");
-const Store = require("electron-store");
 
-console.log("🚀 Electron starting...");
+const isDev = !app.isPackaged;
+const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL || "http://localhost:5173";
+const DIST_INDEX = path.join(__dirname, "dist", "index.html");
 
 let win = null;
 let chatWin = null;
 let fullscreenWatchTimer = null;
-const secureStore = new Store({ name: "jarvis-secure-store" });
+let secureStore = null;
+let backendProcess = null;
 
-// =========================
-// SINGLE INSTANCE LOCK
-// =========================
-
-const gotLock = app.requestSingleInstanceLock();
-
+const gotLock = isDev ? true : app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 }
 
-// =========================
-// CHROMIUM FLAGS (Audio / Mic Stability)
-// =========================
-
 app.commandLine.appendSwitch("use-fake-ui-for-media-stream");
 app.commandLine.appendSwitch("enable-speech-dispatcher");
 app.commandLine.appendSwitch("enable-features", "AudioServiceOutOfProcess");
-app.commandLine.appendSwitch(
-  "disable-features",
-  "IsolateOrigins,site-per-process"
-);
-
-// =========================
-// CLICK THROUGH CONTROL
-// =========================
+app.commandLine.appendSwitch("disable-features", "IsolateOrigins,site-per-process");
 
 function setClickThrough(enabled) {
   if (!win) return;
-
-  win.setIgnoreMouseEvents(enabled, {
-    forward: true,
-  });
-
-  console.log("🖱 Click-through:", enabled);
+  win.setIgnoreMouseEvents(enabled, { forward: true });
 }
 
 ipcMain.on("set-click-through", (_, enabled) => {
   setClickThrough(enabled);
 });
 
-// =========================
-// CHAT WINDOW
-// =========================
+function revealMainWindow() {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.setAlwaysOnTop(true, "screen-saver");
+  win.focus();
+}
+
+function loadRenderer(windowRef, hashPath = "/") {
+  if (isDev) {
+    windowRef.loadURL(`${DEV_SERVER_URL}/#${hashPath}`);
+    return;
+  }
+  windowRef.loadFile(DIST_INDEX, { hash: hashPath });
+}
 
 function createChatWindow() {
   if (chatWin) {
@@ -73,7 +69,6 @@ function createChatWindow() {
     transparent: true,
     alwaysOnTop: true,
     resizable: true,
-
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -82,8 +77,7 @@ function createChatWindow() {
   });
 
   chatWin.setBackgroundColor("#00000000");
-
-  chatWin.loadURL("http://localhost:5173/#/chat");
+  loadRenderer(chatWin, "/chat");
 
   chatWin.on("closed", () => {
     chatWin = null;
@@ -93,10 +87,6 @@ function createChatWindow() {
 ipcMain.on("open-chat", () => {
   createChatWindow();
 });
-
-// =========================
-// OAUTH POPUP (ELECTRON NATIVE)
-// =========================
 
 ipcMain.handle("open-oauth-popup", async (_, url) => {
   if (!url || typeof url !== "string") {
@@ -117,15 +107,10 @@ ipcMain.handle("open-oauth-popup", async (_, url) => {
   });
 
   await popup.loadURL(url);
-
   return await new Promise((resolve) => {
     popup.on("closed", () => resolve({ status: "closed" }));
   });
 });
-
-// =========================
-// SECURE TOKEN STORAGE (ELECTRON)
-// =========================
 
 function encryptValue(plain) {
   if (!safeStorage.isEncryptionAvailable()) return plain;
@@ -139,6 +124,7 @@ function decryptValue(encrypted) {
 }
 
 ipcMain.handle("secure-set", (_, key, value) => {
+  if (!secureStore) return { status: "error", message: "Secure store unavailable" };
   if (!key) return { status: "error", message: "Missing key" };
   const serialized = typeof value === "string" ? value : JSON.stringify(value);
   secureStore.set(key, encryptValue(serialized));
@@ -146,6 +132,7 @@ ipcMain.handle("secure-set", (_, key, value) => {
 });
 
 ipcMain.handle("secure-get", (_, key) => {
+  if (!secureStore) return { status: "error", message: "Secure store unavailable" };
   if (!key) return { status: "error", message: "Missing key" };
   const stored = secureStore.get(key);
   if (!stored) return { status: "not_found" };
@@ -163,92 +150,116 @@ ipcMain.handle("secure-get", (_, key) => {
 });
 
 ipcMain.handle("secure-delete", (_, key) => {
+  if (!secureStore) return { status: "error", message: "Secure store unavailable" };
   if (!key) return { status: "error", message: "Missing key" };
   secureStore.delete(key);
   return { status: "ok" };
 });
 
-// =========================
-// AUTO HIDE IN FULLSCREEN
-// =========================
-
 function watchFullscreen() {
-  if (fullscreenWatchTimer) {
-    clearInterval(fullscreenWatchTimer);
-  }
+  if (fullscreenWatchTimer) clearInterval(fullscreenWatchTimer);
 
   fullscreenWatchTimer = setInterval(() => {
     if (!win || win.isDestroyed()) return;
 
-    const isFull =
-      win.isFullScreen() ||
-      win.isAlwaysOnTop() === false;
-
+    // Only hide when the window itself is fullscreen.
+    // Relying on isAlwaysOnTop() can incorrectly hide Jarvis on some systems.
+    const isFull = win.isFullScreen();
     if (isFull) {
-      if (win.isVisible()) {
-        win.hide();
-      }
+      if (win.isVisible()) win.hide();
     } else if (!win.isVisible()) {
       win.showInactive();
     }
   }, 2000);
 }
 
-// =========================
-// MAIN WINDOW
-// =========================
+function setupAutoUpdater() {
+  if (isDev) return;
+  const { autoUpdater } = require("electron-updater");
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.on("error", (err) => console.error("Auto-update error:", err?.message || err));
+  autoUpdater.on("update-available", () => console.log("Update available"));
+  autoUpdater.on("update-not-available", () => console.log("No update available"));
+  autoUpdater.on("update-downloaded", () => {
+    console.log("Update downloaded; installing...");
+    autoUpdater.quitAndInstall();
+  });
+
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    console.error("Update check failed:", err?.message || err);
+  });
+}
+
+function startBundledBackend() {
+  if (isDev || backendProcess) return;
+
+  const backendExe = path.join(process.resourcesPath, "backend", "jarvis-backend.exe");
+  if (!fs.existsSync(backendExe)) {
+    console.error("Bundled backend executable not found:", backendExe);
+    return;
+  }
+
+  const backendDataDir = path.join(app.getPath("userData"), "backend-data");
+  fs.mkdirSync(backendDataDir, { recursive: true });
+
+  backendProcess = spawn(backendExe, [], {
+    cwd: path.dirname(backendExe),
+    env: {
+      ...process.env,
+      AI_LIFE_DATA_DIR: backendDataDir,
+      DEBUG: "false",
+    },
+    windowsHide: true,
+    stdio: "ignore",
+  });
+
+  backendProcess.on("error", (err) => {
+    console.error("Failed to start bundled backend:", err?.message || err);
+  });
+
+  backendProcess.on("exit", (code, signal) => {
+    console.log("Bundled backend exited:", { code, signal });
+    backendProcess = null;
+  });
+}
+
+function stopBundledBackend() {
+  if (!backendProcess || backendProcess.killed) return;
+  backendProcess.kill();
+}
 
 function createWindow() {
-  console.log("🪟 Creating window...");
-
-  // ⭐ Auto-start with Windows
   app.setLoginItemSettings({
     openAtLogin: true,
     path: app.getPath("exe"),
   });
 
-  // =========================
-  // PERMISSIONS
-  // =========================
-
-  session.defaultSession.setPermissionRequestHandler(
-    (webContents, permission, callback) => {
-      if (
-        permission === "media" ||
-        permission === "audio-capture" ||
-        permission === "video-capture"
-      ) {
-        console.log("✅ Media permission granted");
-        callback(true);
-      } else {
-        callback(false);
-      }
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    if (permission === "media" || permission === "audio-capture" || permission === "video-capture") {
+      callback(true);
+      return;
     }
-  );
-
+    callback(false);
+  });
   session.defaultSession.setDevicePermissionHandler(() => true);
 
-  // =========================
-  // WINDOW POSITION
-  // =========================
-
-  const { width, height } =
-    screen.getPrimaryDisplay().workAreaSize;
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const windowSize = isDev ? 260 : 220;
+  const initialX = Math.round((width - windowSize) / 2);
+  const initialY = height - windowSize - 40;
 
   win = new BrowserWindow({
-    width: 220,
-    height: 220,
-
-    x: width - 240,
-    y: height - 260,
-
+    width: windowSize,
+    height: windowSize,
+    x: initialX,
+    y: initialY,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
     hasShadow: false,
-    skipTaskbar: true,
-
+    skipTaskbar: !isDev,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -259,48 +270,53 @@ function createWindow() {
   });
 
   win.setBackgroundColor("#00000000");
+  revealMainWindow();
 
-  // =========================
-  // LOAD REACT WITH RETRY
-  // =========================
-
-  function loadApp() {
-    console.log("🌐 Loading React...");
-
-    win.loadURL("http://localhost:5173/")
-      .catch(() => {
-        console.log("⏳ Waiting for Vite...");
-        setTimeout(loadApp, 1000);
-      });
+  if (isDev) {
+    const tryLoad = () => {
+      win.loadURL(`${DEV_SERVER_URL}/#/`).catch(() => setTimeout(tryLoad, 1000));
+    };
+    tryLoad();
+  } else {
+    loadRenderer(win, "/");
   }
-
-  loadApp();
 
   watchFullscreen();
 
-  // Debug (remove in production)
-  win.webContents.openDevTools({ mode: "detach" });
+  if (isDev) {
+    win.webContents.openDevTools({ mode: "detach" });
+  }
 }
 
-// =========================
-// APP EVENTS
-// =========================
-
 app.whenReady().then(() => {
+  import("electron-store")
+    .then(({ default: Store }) => {
+      secureStore = new Store({ name: "jarvis-secure-store" });
+    })
+    .catch((err) => {
+      console.error("Failed to initialize electron-store:", err?.message || err);
+    });
+
+  app.setAppUserModelId("com.jarvis.assistant");
+  startBundledBackend();
   createWindow();
+  setupAutoUpdater();
   powerMonitor.on("resume", watchFullscreen);
 });
 
 app.on("second-instance", () => {
-  if (win) win.focus();
+  revealMainWindow();
 });
 
 app.on("window-all-closed", () => {
+  stopBundledBackend();
   if (fullscreenWatchTimer) {
     clearInterval(fullscreenWatchTimer);
     fullscreenWatchTimer = null;
   }
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  stopBundledBackend();
 });

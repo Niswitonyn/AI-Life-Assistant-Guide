@@ -6,7 +6,7 @@ import uvicorn
 import threading
 import base64
 import json
-import os
+from app.config.paths import USERS_FILE
 
 # ROUTERS
 from app.api.routes_tasks import router as tasks_router
@@ -49,7 +49,7 @@ notifier = EmailNotifier(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    print("🚀 AI Life Assistant Backend Starting...")
+    print("AI Life Assistant Backend Starting...")
 
     # Initialize DB
     init_db()
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    print("🛑 AI Life Assistant Backend Shutting Down...")
+    print("AI Life Assistant Backend Shutting Down...")
 
 
 # -------------------------
@@ -124,17 +124,17 @@ async def gmail_webhook(request: Request):
 
     history_id = payload.get("historyId")
 
-    print("📧 Gmail event received:", history_id)
+    print("Gmail event received:", history_id)
 
     # -------------------------
     # FIND USER FROM MAPPING
     # -------------------------
-    users_file = os.path.join("app", "data", "pubsub_users.json")
+    users_file = USERS_FILE
 
-    if not os.path.exists(users_file):
+    if not users_file.exists():
         return {"status": "no user mapping"}
 
-    with open(users_file, "r") as f:
+    with open(users_file, "r", encoding="utf-8") as f:
         users = json.load(f)
 
     user_id = None
@@ -145,10 +145,10 @@ async def gmail_webhook(request: Request):
             break
 
     if not user_id:
-        print("⚠️ User not found for historyId")
+        print("User not found for historyId")
         return {"status": "user not found"}
 
-    print(f"✅ Routed to user: {user_id}")
+    print(f"Routed to user: {user_id}")
 
     # -------------------------
     # LOAD USER GMAIL
