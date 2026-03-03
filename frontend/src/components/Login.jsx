@@ -23,7 +23,7 @@ export default function Login() {
     if (data.token && data.user_id) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user_id", String(data.user_id));
-      window.location.reload();
+      window.location.hash = "/";
       return;
     }
     setError(data.detail || data.error || "Login failed");

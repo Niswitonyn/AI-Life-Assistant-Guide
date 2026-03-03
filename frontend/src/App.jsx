@@ -69,7 +69,7 @@ function App() {
 
         <Route
           path="/login"
-          element={hasToken ? <Navigate to="/" replace /> : <Login />}
+          element={<Login />}
         />
 
         {/* Chat Window */}
