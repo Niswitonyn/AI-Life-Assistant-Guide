@@ -1,0 +1,120 @@
+.settings-wrap {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #07101b;
+  color: #d8ecff;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+.settings-card {
+  width: min(520px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+  background: #0e1a2a;
+  border: 1px solid rgba(101, 196, 255, 0.28);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.settings-close {
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: rgba(248, 113, 113, 0.2);
+  color: #ffd9d9;
+  border-radius: 8px;
+  width: 32px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.settings-card section {
+  border: 1px solid rgba(101, 196, 255, 0.2);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.settings-card label {
+  font-size: 13px;
+}
+
+.settings-card input,
+.settings-card select {
+  border: 1px solid #2b4867;
+  border-radius: 8px;
+  background: #0b1624;
+  color: #e8f4ff;
+  padding: 8px 10px;
+}
+
+.settings-card button {
+  border: 1px solid rgba(101, 196, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(101, 196, 255, 0.18);
+  color: #e8f4ff;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.settings-card button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ok,
+.bad {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.ok {
+  background: rgba(52, 211, 153, 0.25);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+}
+
+.bad {
+  background: rgba(248, 113, 113, 0.25);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+}
+
+.msg {
+  margin: 0;
+  font-size: 13px;
+  color: #9dd7ff;
+}
+
+.logout {
+  align-self: flex-end;
+  border-color: rgba(248, 113, 113, 0.5) !important;
+  background: rgba(248, 113, 113, 0.16) !important;
+}

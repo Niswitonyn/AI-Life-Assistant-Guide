@@ -5,6 +5,7 @@ import JarvisAvatar from "./components/JarvisAvatar";
 import ChatPanel from "./components/ChatPanel";
 import Setup from "./components/Setup";
 import Login from "./components/Login";
+import SettingsPanel from "./components/SettingsPanel";
 import { apiUrl } from "./config/api";
 
 function App() {
@@ -76,6 +77,10 @@ function App() {
 
         {/* Setup Screen */}
         <Route path="/setup" element={<Setup />} />
+        <Route
+          path="/settings"
+          element={hasToken ? <SettingsPanel /> : <Navigate to="/login" replace />}
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
 

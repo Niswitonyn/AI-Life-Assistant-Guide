@@ -1,52 +1,69 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "../config/api";
+import "./SettingsPanel.css";
 
 export default function SettingsPanel() {
-
   const [status, setStatus] = useState({
     gmail_ready: false,
     ai_ready: false,
-    user_ready: false
+    user_ready: false,
   });
-
   const [name, setName] = useState("");
-
-  // ✅ NEW STATES
+  const [provider, setProvider] = useState("openai");
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState("");
 
-  // -------------------------
-  // LOAD STATUS
-  // -------------------------
-  const loadStatus = () => {
+  function loadStatus() {
     fetch(apiUrl("/api/setup/status"))
-      .then(res => res.json())
-      .then(data => setStatus(data))
+      .then((res) => res.json())
+      .then((data) => setStatus(data))
       .catch(() => {});
-  };
+  }
 
   useEffect(() => {
     loadStatus();
   }, []);
 
-  // -------------------------
-  // SAVE USER
-  // -------------------------
-  const saveUser = async () => {
+  async function saveUser() {
     await fetch(apiUrl("/api/setup/user"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name }),
     });
-
+    setMessage("Profile saved.");
     loadStatus();
-  };
+  }
 
-  // -------------------------
-  // CONNECT GMAIL (OAuth + AUTO REFRESH + LOADING)
-  // -------------------------
-  const connectGmail = () => {
+  async function saveAiConfig() {
+    const payload = {
+      provider: provider === "local" ? "ollama" : provider,
+      api_key: apiKey,
+      model,
+    };
 
+    await fetch(apiUrl("/api/setup/ai"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setMessage("AI settings saved.");
+    loadStatus();
+  }
+
+  function closeSettings() {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require("electron");
+        ipcRenderer.send("open-main");
+        return;
+      }
+    } catch {}
+    window.location.hash = "/";
+  }
+
+  function connectGmail() {
     const userId = localStorage.getItem("user_id") || "default";
     const oauthUrl = `${apiUrl("/api/auth/gmail/login")}?user_id=${userId}`;
 
@@ -64,197 +81,119 @@ export default function SettingsPanel() {
       ipcRenderer.invoke("open-oauth-popup", oauthUrl)
         .then(async () => {
           try {
-            const profileRes = await fetch(
-              `${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`
-            );
+            const profileRes = await fetch(`${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`);
             if (profileRes.ok) {
               const profile = await profileRes.json();
-              if (profile.token) {
-                localStorage.setItem("token", profile.token);
-              }
-              if (profile.user_id) {
-                localStorage.setItem("user_id", String(profile.user_id));
-              }
+              if (profile.token) localStorage.setItem("token", profile.token);
+              if (profile.user_id) localStorage.setItem("user_id", String(profile.user_id));
               await ipcRenderer.invoke("secure-set", "gmail_profile", profile);
             }
           } catch {}
-
-          loadStatus();
           setConnecting(false);
-          setMessage("Gmail connected successfully");
+          setMessage("Gmail connected.");
+          loadStatus();
         })
         .catch(() => {
           setConnecting(false);
-          setMessage("OAuth popup failed");
+          setMessage("Gmail OAuth failed.");
         });
       return;
     }
 
     const popup = window.open(oauthUrl, "_blank");
-
     if (!popup) {
       setConnecting(false);
-      setMessage("Popup blocked. Allow popups and try again.");
+      setMessage("Popup blocked.");
       return;
     }
 
     const timer = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(timer);
-        fetch(`${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`)
-          .then((res) => res.ok ? res.json() : null)
-          .then((profile) => {
-            if (!profile) return;
-            if (profile.token) {
-              localStorage.setItem("token", profile.token);
-            }
-            if (profile.user_id) {
-              localStorage.setItem("user_id", String(profile.user_id));
-            }
-          })
-          .catch(() => {});
-
-        loadStatus();
-        setConnecting(false);
-        setMessage("Gmail connected successfully");
-      }
+      if (!popup.closed) return;
+      clearInterval(timer);
+      setConnecting(false);
+      setMessage("Gmail connected.");
+      loadStatus();
     }, 1000);
-  };
+  }
 
-  // -------------------------
-  // DISCONNECT GMAIL
-  // -------------------------
-  const disconnectGmail = async () => {
-
-    await fetch(apiUrl("/api/setup/disconnect-gmail"), {
-      method: "POST"
-    });
-
+  async function disconnectGmail() {
+    await fetch(apiUrl("/api/setup/disconnect-gmail"), { method: "POST" });
+    setMessage("Gmail disconnected.");
     loadStatus();
-  };
+  }
 
-  // -------------------------
-  // RECONNECT AI
-  // -------------------------
-  const reconnectAI = async () => {
-
-    await fetch(apiUrl("/api/setup/reconnect-ai"), {
-      method: "POST"
-    });
-
+  async function reconnectAI() {
+    await fetch(apiUrl("/api/setup/reconnect-ai"), { method: "POST" });
+    setMessage("AI config reset.");
     loadStatus();
-  };
+  }
 
-  // -------------------------
-  // LOGOUT
-  // -------------------------
-  const logout = () => {
-
+  function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user_id");
-
-    window.location.reload();
-  };
-
-  const badge = (ok) =>
-    ok
-      ? "bg-green-500 text-white px-2 py-1 rounded text-xs"
-      : "bg-red-500 text-white px-2 py-1 rounded text-xs";
+    window.location.hash = "/login";
+  }
 
   return (
-    <div className="max-w-xl mx-auto p-6 space-y-6">
-
-      <h2 className="text-2xl font-bold">⚙ Settings</h2>
-
-      {/* USER PROFILE */}
-      <div className="bg-gray-900 text-white p-4 rounded-xl shadow">
-        <div className="flex justify-between mb-3">
-          <span>User Profile</span>
-          <span className={badge(status.user_ready)}>
-            {status.user_ready ? "Connected" : "Not Connected"}
-          </span>
+    <div className="settings-wrap">
+      <div className="settings-card">
+        <div className="settings-head">
+          <h2>Settings</h2>
+          <button className="settings-close" onClick={closeSettings}>X</button>
         </div>
 
-        <input
-          className="w-full p-2 rounded text-black"
-          placeholder="Your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+        <section>
+          <label>Name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+          />
+          <button onClick={saveUser}>Save Profile</button>
+        </section>
 
-        <button
-          onClick={saveUser}
-          className="mt-3 bg-blue-500 px-4 py-2 rounded"
-        >
-          Save Profile
-        </button>
-      </div>
-
-      {/* GMAIL */}
-      <div className="bg-gray-900 text-white p-4 rounded-xl shadow">
-        <div className="flex justify-between mb-3">
-          <span>Gmail</span>
-          <span className={badge(status.gmail_ready)}>
-            {status.gmail_ready ? "Connected" : "Not Connected"}
-          </span>
-        </div>
-
-        <div className="flex gap-2">
-
-          <button
-            onClick={connectGmail}
-            disabled={connecting}
-            className="bg-green-500 px-4 py-2 rounded"
-          >
-            {connecting ? "Connecting..." : "Connect"}
-          </button>
-
-          <button
-            onClick={disconnectGmail}
-            className="bg-red-500 px-4 py-2 rounded"
-          >
-            Disconnect
-          </button>
-
-        </div>
-
-        {/* SUCCESS MESSAGE */}
-        {message && (
-          <div className="text-green-400 text-sm mt-2">
-            {message}
+        <section>
+          <label>AI Provider</label>
+          <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="local">Local (Ollama)</option>
+          </select>
+          <input
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="API key (for OpenAI / Gemini)"
+          />
+          <input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="Model (optional)"
+          />
+          <div className="row">
+            <button onClick={saveAiConfig}>Save AI</button>
+            <button onClick={reconnectAI}>Reset AI</button>
           </div>
-        )}
+        </section>
 
-      </div>
+        <section>
+          <div className="row">
+            <button onClick={connectGmail} disabled={connecting}>
+              {connecting ? "Connecting..." : "Connect Gmail"}
+            </button>
+            <button onClick={disconnectGmail}>Disconnect Gmail</button>
+          </div>
+        </section>
 
-      {/* AI PROVIDER */}
-      <div className="bg-gray-900 text-white p-4 rounded-xl shadow">
-        <div className="flex justify-between mb-3">
-          <span>AI Provider</span>
-          <span className={badge(status.ai_ready)}>
-            {status.ai_ready ? "Configured" : "Not Configured"}
-          </span>
+        <div className="status-row">
+          <span className={status.user_ready ? "ok" : "bad"}>User</span>
+          <span className={status.ai_ready ? "ok" : "bad"}>AI</span>
+          <span className={status.gmail_ready ? "ok" : "bad"}>Gmail</span>
         </div>
 
-        <button
-          onClick={reconnectAI}
-          className="bg-purple-500 px-4 py-2 rounded"
-        >
-          Reconnect AI
-        </button>
-      </div>
+        {message && <p className="msg">{message}</p>}
 
-      {/* LOGOUT */}
-      <div className="text-center">
-        <button
-          onClick={logout}
-          className="bg-gray-700 text-white px-6 py-2 rounded"
-        >
-          Logout
-        </button>
+        <button className="logout" onClick={logout}>Logout</button>
       </div>
-
     </div>
   );
-} 
-
+}

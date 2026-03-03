@@ -88,6 +88,27 @@ ipcMain.on("open-chat", () => {
   createChatWindow();
 });
 
+ipcMain.on("open-settings", () => {
+  revealMainWindow();
+  if (!win || win.isDestroyed()) return;
+  loadRenderer(win, "/settings");
+});
+
+ipcMain.on("open-main", () => {
+  revealMainWindow();
+  if (!win || win.isDestroyed()) return;
+  loadRenderer(win, "/");
+});
+
+ipcMain.on("close-chat", () => {
+  if (!chatWin || chatWin.isDestroyed()) return;
+  chatWin.close();
+});
+
+ipcMain.on("close-app", () => {
+  app.quit();
+});
+
 ipcMain.handle("open-oauth-popup", async (_, url) => {
   if (!url || typeof url !== "string") {
     return { status: "error", message: "Invalid OAuth URL" };

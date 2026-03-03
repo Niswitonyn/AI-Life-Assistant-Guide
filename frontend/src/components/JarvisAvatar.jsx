@@ -4,13 +4,15 @@ import { apiUrl } from "../config/api";
 
 export default function JarvisAvatar() {
   const HOLD_TO_TALK_DELAY_MS = 180;
-  const CORE_HIT_RADIUS_PX = 70;
+  const CORE_HIT_RADIUS_PX = 42;
 
   const [state, setState] = useState("idle");
   const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const recognitionRef = useRef(null);
   const isHoldingRef = useRef(false);
+  const rootRef = useRef(null);
 
   const mediaStreamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -54,7 +56,7 @@ export default function JarvisAvatar() {
       if (window.require) {
         const { ipcRenderer } = window.require("electron");
 
-        const clickThrough = state === "idle" && !hovered;
+        const clickThrough = state === "idle" && !hovered && !menuOpen;
 
         ipcRenderer.send("set-click-through", clickThrough);
       }
@@ -62,7 +64,19 @@ export default function JarvisAvatar() {
       // not electron
     }
 
-  }, [state, hovered]);
+  }, [state, hovered, menuOpen]);
+
+  useEffect(() => {
+    function handleDocClick(e) {
+      if (!menuOpen) return;
+      if (!rootRef.current?.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocClick);
+    return () => document.removeEventListener("mousedown", handleDocClick);
+  }, [menuOpen]);
 
   // =========================
   // SMART PROXIMITY DETECTION
@@ -465,12 +479,54 @@ async function sendToBackend(message) {
     } catch {}
   }
 
+  function openSettings() {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require("electron");
+        ipcRenderer.send("open-settings");
+      } else {
+        window.location.hash = "/settings";
+      }
+    } catch {
+      window.location.hash = "/settings";
+    } finally {
+      setMenuOpen(false);
+    }
+  }
+
+  function openChatFromMenu() {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require("electron");
+        ipcRenderer.send("open-chat");
+      } else {
+        window.location.hash = "/chat";
+      }
+    } catch {
+      window.location.hash = "/chat";
+    } finally {
+      setMenuOpen(false);
+    }
+  }
+
+  function closeApp() {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require("electron");
+        ipcRenderer.send("close-app");
+        return;
+      }
+    } catch {}
+    window.close();
+  }
+
 
   // =========================
   // UI
   // =========================
   return (
     <div
+      ref={rootRef}
       className={`jarvis-container ${state}`}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
@@ -482,6 +538,26 @@ async function sendToBackend(message) {
       onDoubleClick={openChat}
       title="Hold to talk. Shift + double-click to open chat."
     >
+      <button
+        className="jarvis-menu-btn"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen((v) => !v);
+        }}
+        title="Menu"
+      >
+        ⋮
+      </button>
+
+      {menuOpen && (
+        <div className="jarvis-menu" onMouseDown={(e) => e.stopPropagation()}>
+          <button onClick={openChatFromMenu}>Chat</button>
+          <button onClick={openSettings}>Settings</button>
+          <button onClick={closeApp} className="danger">Close App</button>
+        </div>
+      )}
+
       <div className="jarvis-ring"></div>
       <div className="jarvis-core"></div>
     </div>

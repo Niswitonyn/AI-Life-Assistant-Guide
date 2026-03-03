@@ -71,11 +71,39 @@ export default function ChatPanel() {
     if (e.key === "Enter") sendMessage();
   }
 
+  function openSettings() {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require("electron");
+        ipcRenderer.send("open-settings");
+      } else {
+        window.location.hash = "/settings";
+      }
+    } catch {
+      window.location.hash = "/settings";
+    }
+  }
+
+  function closeChat() {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require("electron");
+        ipcRenderer.send("close-chat");
+        return;
+      }
+    } catch {}
+    window.close();
+  }
+
   return (
     <div className="chat-container">
 
       <div className="chat-header">
-        JARVIS
+        <span>JARVIS</span>
+        <div className="chat-header-actions">
+          <button onClick={openSettings} className="chat-h-btn">Settings</button>
+          <button onClick={closeChat} className="chat-h-btn danger">X</button>
+        </div>
       </div>
 
       <div className="chat-messages">

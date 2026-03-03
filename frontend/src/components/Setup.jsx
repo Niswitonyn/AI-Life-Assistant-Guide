@@ -78,6 +78,7 @@ export default function Setup() {
       >
         <option value="openai">OpenAI</option>
         <option value="gemini">Gemini</option>
+        <option value="ollama">Local (Ollama)</option>
       </select>
 
       <input
