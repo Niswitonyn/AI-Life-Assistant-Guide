@@ -266,20 +266,21 @@ function createWindow() {
   session.defaultSession.setDevicePermissionHandler(() => true);
 
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-  const windowSize = isDev ? 260 : 420;
-  const initialX = Math.round((width - windowSize) / 2);
-  const initialY = Math.round((height - windowSize) / 2);
+  const windowWidth = isDev ? 900 : 520;
+  const windowHeight = isDev ? 760 : 720;
+  const initialX = Math.round((width - windowWidth) / 2);
+  const initialY = Math.round((height - windowHeight) / 2);
 
   win = new BrowserWindow({
-    width: windowSize,
-    height: windowSize,
+    width: windowWidth,
+    height: windowHeight,
     x: initialX,
     y: initialY,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    resizable: false,
-    hasShadow: false,
+    frame: true,
+    transparent: false,
+    alwaysOnTop: false,
+    resizable: true,
+    hasShadow: true,
     skipTaskbar: false,
     webPreferences: {
       nodeIntegration: true,
@@ -290,16 +291,16 @@ function createWindow() {
     },
   });
 
-  win.setBackgroundColor("#00000000");
+  win.setBackgroundColor("#0b1220");
   revealMainWindow();
 
   if (isDev) {
     const tryLoad = () => {
-      win.loadURL(`${DEV_SERVER_URL}/#/`).catch(() => setTimeout(tryLoad, 1000));
+      win.loadURL(`${DEV_SERVER_URL}/#/login`).catch(() => setTimeout(tryLoad, 1000));
     };
     tryLoad();
   } else {
-    loadRenderer(win, "/");
+    loadRenderer(win, "/login");
   }
 
   watchFullscreen();
