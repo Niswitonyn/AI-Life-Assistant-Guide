@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { HashRouter as Router, Routes, Route } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
 import JarvisAvatar from "./components/JarvisAvatar";
 import ChatPanel from "./components/ChatPanel";
 import Setup from "./components/Setup";
+import Login from "./components/Login";
 import { apiUrl } from "./config/api";
 
 function App() {
@@ -12,6 +13,9 @@ function App() {
     typeof navigator !== "undefined" &&
     navigator.userAgent.toLowerCase().includes("electron");
   const [ready, setReady] = useState(isElectron);
+  const hasToken =
+    typeof window !== "undefined" &&
+    !!window.localStorage.getItem("token");
 
   useEffect(() => {
     if (isElectron) {
@@ -57,15 +61,23 @@ function App() {
   return (
     <Router>
       <Routes>
+        <Route
+          path="/"
+          element={hasToken ? <JarvisAvatar /> : <Navigate to="/login" replace />}
+        />
 
-        {/* Floating Jarvis */}
-        <Route path="/" element={<JarvisAvatar />} />
+        <Route
+          path="/login"
+          element={hasToken ? <Navigate to="/" replace /> : <Login />}
+        />
 
         {/* Chat Window */}
         <Route path="/chat" element={<ChatPanel />} />
 
         {/* Setup Screen */}
         <Route path="/setup" element={<Setup />} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>
     </Router>

@@ -245,9 +245,9 @@ function createWindow() {
   session.defaultSession.setDevicePermissionHandler(() => true);
 
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-  const windowSize = isDev ? 260 : 220;
+  const windowSize = isDev ? 260 : 420;
   const initialX = Math.round((width - windowSize) / 2);
-  const initialY = height - windowSize - 40;
+  const initialY = Math.round((height - windowSize) / 2);
 
   win = new BrowserWindow({
     width: windowSize,
@@ -259,7 +259,7 @@ function createWindow() {
     alwaysOnTop: true,
     resizable: false,
     hasShadow: false,
-    skipTaskbar: !isDev,
+    skipTaskbar: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
