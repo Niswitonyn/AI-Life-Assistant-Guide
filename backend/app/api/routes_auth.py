@@ -113,7 +113,10 @@ def gmail_login(user_id: str = "default"):
         else:
             users = {}
 
-        users[internal_user_id] = {"historyId": history_id}
+        users[internal_user_id] = {
+            "email": email,
+            "historyId": history_id,
+        }
 
         with open(USERS_FILE, "w", encoding="utf-8") as f:
             json.dump(users, f, indent=2)

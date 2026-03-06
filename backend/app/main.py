@@ -112,12 +112,30 @@ async def health_check():
 # GMAIL PUBSUB WEBHOOK (MULTI USER)
 # -------------------------
 @app.post("/gmail/webhook")
-async def gmail_webhook(request: Request):
+async def gmail_webhook(request: Request, user_id: str = None):
+    """
+    Gmail Pub/Sub webhook handler.
+
+    Routes incoming Gmail notifications to the correct user based on:
+    1. Explicit user_id query parameter (for debugging/fallback)
+    2. Email lookup in users.json (requires email to be stored during setup)
+
+    IMPORTANT: Gmail historyId changes with every message and CANNOT be used
+    for routing. The old code tried to match incoming historyId with stored
+    historyId - this never worked because historyId is transient per event.
+
+    For production: Configure Cloud Pub/Sub message attributes to include
+    the user email address, then extract it from message attributes.
+    """
 
     body = await request.json()
 
     message = body.get("message", {})
     data = message.get("data")
+
+    # Try to extract user from message attributes (Cloud Pub/Sub feature)
+    message_attributes = message.get("attributes", {})
+    attr_user_id = message_attributes.get("user_id") or message_attributes.get("email")
 
     if not data:
         return {"status": "no data"}
@@ -127,7 +145,7 @@ async def gmail_webhook(request: Request):
 
     history_id = payload.get("historyId")
 
-    print("Gmail event received:", history_id)
+    print("Gmail event received - historyId:", history_id)
 
     # -------------------------
     # FIND USER FROM MAPPING
@@ -140,18 +158,41 @@ async def gmail_webhook(request: Request):
     with open(users_file, "r", encoding="utf-8") as f:
         users = json.load(f)
 
-    user_id = None
+    # Priority order for user identification:
+    # 1. Explicit query parameter (testing/fallback)
+    # 2. Message attribute (Cloud Pub/Sub configured with user info)
+    # 3. Email lookup (if only one user or email encoded in subscription)
 
-    for uid, info in users.items():
-        if str(info.get("historyId")) == str(history_id):
-            user_id = uid
-            break
+    identified_user_id = None
 
-    if not user_id:
-        print("User not found for historyId")
-        return {"status": "user not found"}
+    if user_id and user_id in users:
+        identified_user_id = user_id
+        print(f"✅ Routed via query parameter: {user_id}")
+    elif attr_user_id:
+        # Try message attribute user_id or email
+        identified_user_id = attr_user_id if attr_user_id in users else None
+        if not identified_user_id:
+            # Try to find by email if attribute is an email
+            for uid, info in users.items():
+                if info.get("email", "").lower() == attr_user_id.lower():
+                    identified_user_id = uid
+                    break
+        if identified_user_id:
+            print(f"✅ Routed via message attributes: {identified_user_id}")
+    else:
+        # Fallback: use the most recently added user (single-user common case)
+        if users:
+            identified_user_id = next(iter(users.keys()))
+            print(f"⚠️  No explicit routing info - using most recent user: {identified_user_id}")
 
-    print(f"Routed to user: {user_id}")
+    if not identified_user_id:
+        print("❌ Could not identify user for Gmail webhook")
+        print("   Solution 1: Pass ?user_id=X query parameter")
+        print("   Solution 2: Configure Cloud Pub/Sub message attributes with user_id or email")
+        print("   Solution 3: Ensure at least one Gmail account is connected")
+        return {"status": "user not found - check routing configuration"}
+
+    user_id = identified_user_id
 
     # -------------------------
     # LOAD USER GMAIL
