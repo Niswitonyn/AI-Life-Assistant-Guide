@@ -16,6 +16,7 @@ build-vs/
 !.env.example
 !frontend/.env.example
 backend/.venv/
+%cd%/
 
 # Tokens / secrets
 tokens/
