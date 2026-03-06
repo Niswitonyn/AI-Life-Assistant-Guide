@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker
 
 from app.config.settings import settings
+from app.database.base import Base
 
 # -----------------------------------------
 # Database Engine
@@ -21,13 +22,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine,
 )
-
-# -----------------------------------------
-# Base Model
-# -----------------------------------------
-
-Base = declarative_base()
-
 
 # -----------------------------------------
 # Dependency (FastAPI)

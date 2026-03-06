@@ -1,4 +1,5 @@
-from app.database.db import engine, Base
+from app.database.db import engine
+from app.database.base import Base
 from app.database import models
 from sqlalchemy import text
 
