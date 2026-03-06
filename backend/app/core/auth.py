@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import os
 import secrets
 from datetime import datetime, timedelta
 
@@ -13,11 +12,9 @@ from app.config.settings import settings
 from app.database.db import get_db
 from app.database.models import User
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", getattr(settings, "JWT_SECRET_KEY", "")) or "change-this-jwt-secret"
+SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_MINUTES = int(
-    os.getenv("JWT_EXPIRE_MINUTES", str(getattr(settings, "JWT_EXPIRE_MINUTES", 10080)))
-)  # 7 days
+TOKEN_EXPIRE_MINUTES = settings.JWT_EXPIRE_MINUTES
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
