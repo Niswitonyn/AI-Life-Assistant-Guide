@@ -70,7 +70,8 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return {"status": "registered", "user_id": user.id}
+    # FIX: return user.user_id (string) not user.id (integer)
+    return {"status": "registered", "user_id": user.user_id}
 
 
 @router.post("/login")
@@ -83,11 +84,12 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="invalid credentials")
 
-    token = create_token(str(user.id), email=user.email)
+    # FIX: always use user.user_id (string UUID) in token, never user.id (integer)
+    token = create_token(user.user_id, email=user.email)
     return {
         "status": "success",
         "token": token,
-        "user_id": user.id,
+        "user_id": user.user_id,  # FIX: return string user_id for consistency
         "name": user.name,
     }
 
@@ -116,12 +118,14 @@ def login_with_google(data: GoogleLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="google email not verified")
 
     user = _upsert_google_user(db, email=email, name=name, google_sub=google_sub)
-    token = create_token(str(user.id), email=user.email)
+
+    # FIX: always use user.user_id (string UUID) in token, never user.id (integer)
+    token = create_token(user.user_id, email=user.email)
 
     return {
         "status": "success",
         "token": token,
-        "user_id": user.id,
+        "user_id": user.user_id,  # FIX: return string user_id for consistency
         "name": user.name,
         "email": user.email,
     }

@@ -14,7 +14,8 @@
  *   2. Uses the same derived credentials
  */
 
-import { ipcRenderer } from "electron"; // Available when nodeIntegration: true
+// Use window.electronAPI (exposed via preload script) for IPC
+// This works with contextIsolation: true and nodeIntegration: false
 
 /**
  * Generate a UUID v4 using crypto.randomUUID (built-in, no external deps)
@@ -30,7 +31,10 @@ function generateUUID() {
 export async function getMachineCredentials() {
   try {
     // Try to retrieve existing machine ID from secure storage
-    const stored = await ipcRenderer.invoke("secure-get", "machine_id");
+    let stored = null;
+    if (window.electronAPI) {
+      stored = await window.electronAPI.secureGet("machine_id");
+    }
 
     if (stored?.status === "ok" && stored.value) {
       return {
@@ -44,11 +48,13 @@ export async function getMachineCredentials() {
     const machineId = generateUUID();
 
     // Store it securely - this goes through electron.js which encrypts it
-    try {
-      await ipcRenderer.invoke("secure-set", "machine_id", machineId);
-    } catch (storeError) {
-      console.warn("Could not persist machine ID to secure storage:", storeError);
-      // Continue anyway with the in-memory ID for this session
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.secureSet("machine_id", machineId);
+      } catch (storeError) {
+        console.warn("Could not persist machine ID to secure storage:", storeError);
+        // Continue anyway with the in-memory ID for this session
+      }
     }
 
     return {
@@ -58,6 +64,7 @@ export async function getMachineCredentials() {
     };
   } catch (error) {
     console.error("Failed to get machine credentials:", error);
+
     throw new Error(
       "Could not initialize machine-local authentication. Ensure the app is running with proper permissions."
     );

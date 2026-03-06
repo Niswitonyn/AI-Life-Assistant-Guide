@@ -43,3 +43,10 @@ backend/dist/
 build-vs/
 win-unpacked/
 *.exe
+
+# Logs
+*.log
+backend/pip_error.log
+frontend/electron_*.log
+
+frontend/.gitignore

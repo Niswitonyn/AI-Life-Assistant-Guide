@@ -25,12 +25,12 @@ export default function SettingsPanel() {
     fetch(apiUrl("/api/setup/status"))
       .then((res) => res.json())
       .then((data) => setStatus(data))
-      .catch(() => {});
+      .catch(() => { });
 
     fetch(apiUrl("/api/setup/gmail/status"))
       .then((res) => res.json())
       .then((data) => setGoogleStatus(data))
-      .catch(() => {});
+      .catch(() => { });
   }
 
   useEffect(() => {
@@ -65,19 +65,15 @@ export default function SettingsPanel() {
   }
 
   function closeSettings() {
-    try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-        ipcRenderer.send("open-main");
-        return;
-      }
-    } catch {}
-    window.location.hash = "/";
+    if (window.electronAPI) {
+      window.electronAPI.openMain();
+    } else {
+      window.location.hash = "/";
+    }
   }
 
   function connectGmail() {
     const userId = localStorage.getItem("user_id") || "default";
-    const oauthUrl = `${apiUrl("/api/auth/gmail/login")}?user_id=${userId}`;
     if (!googleStatus.has_credentials) {
       setMessage("Upload Google Cloud credentials.json first.");
       return;
@@ -86,36 +82,45 @@ export default function SettingsPanel() {
     setConnecting(true);
     setMessage("");
 
-    let ipcRenderer = null;
-    try {
-      if (window.require) {
-        ipcRenderer = window.require("electron").ipcRenderer;
-      }
-    } catch {}
-
-    if (ipcRenderer) {
-      ipcRenderer.invoke("open-oauth-popup", oauthUrl)
+    if (window.electronAPI) {
+      // Electron path: use two-step OAuth flow
+      fetch(`${apiUrl("/api/auth/gmail/login/init")}?user_id=${userId}`)
+        .then((res) => {
+          if (!res.ok) {
+            return res.json().then((data) => {
+              throw new Error(data.detail || "Failed to initialize OAuth");
+            });
+          }
+          return res.json();
+        })
+        .then((data) => {
+          // Step 1: Get auth URL, Step 2: Open popup
+          return window.electronAPI.openOAuthPopup(data.auth_url);
+        })
         .then(async () => {
+          // Step 3: After popup closes, fetch profile and store tokens
           try {
             const profileRes = await fetch(`${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`);
             if (profileRes.ok) {
               const profile = await profileRes.json();
               if (profile.token) localStorage.setItem("token", profile.token);
               if (profile.user_id) localStorage.setItem("user_id", String(profile.user_id));
-              await ipcRenderer.invoke("secure-set", "gmail_profile", profile);
+              await window.electronAPI.secureSet("gmail_profile", profile);
             }
-          } catch {}
+          } catch { }
           setConnecting(false);
           setMessage("Gmail connected.");
           loadStatus();
         })
-        .catch(() => {
+        .catch((err) => {
           setConnecting(false);
-          setMessage("Gmail OAuth failed.");
+          setMessage(`Gmail OAuth failed: ${err.message || err}`);
         });
       return;
     }
 
+    // Web path: use direct login endpoint (fallback)
+    const oauthUrl = `${apiUrl("/api/auth/gmail/login")}?user_id=${userId}`;
     const popup = window.open(oauthUrl, "_blank");
     if (!popup) {
       setConnecting(false);

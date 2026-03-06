@@ -75,8 +75,8 @@ def get_optional_current_user(
     if not user_id:
         return None
 
-    if user_id.isdigit():
-        return db.query(User).filter(User.id == int(user_id)).first()
+    # FIX: tokens always contain user.user_id (string like "user:abc123" or "google:xyz")
+    # No more isdigit() guessing - always look up by the string user_id field
     return db.query(User).filter(User.user_id == user_id).first()
 
 

@@ -14,6 +14,7 @@ const {
 const isDev = !app.isPackaged;
 const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL || "http://localhost:5173";
 const DIST_INDEX = path.join(__dirname, "dist", "index.html");
+const PRELOAD_PATH = path.join(__dirname, "preload.js");
 
 let win = null;
 let chatWin = null;
@@ -70,9 +71,11 @@ function createChatWindow() {
     alwaysOnTop: true,
     resizable: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      sandbox: false,
+      // FIX: secure webPreferences - no Node.js access in renderer
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      preload: PRELOAD_PATH,
     },
   });
 
@@ -183,8 +186,6 @@ function watchFullscreen() {
   fullscreenWatchTimer = setInterval(() => {
     if (!win || win.isDestroyed()) return;
 
-    // Only hide when the window itself is fullscreen.
-    // Relying on isAlwaysOnTop() can incorrectly hide Jarvis on some systems.
     const isFull = win.isFullScreen();
     if (isFull) {
       if (win.isVisible()) win.hide();
@@ -297,16 +298,12 @@ function createWindow() {
   session.defaultSession.setDevicePermissionHandler(() => true);
 
   const { width, height, x, y } = screen.getPrimaryDisplay().workArea;
-  const windowWidth = width;
-  const windowHeight = height;
-  const initialX = x;
-  const initialY = y;
 
   win = new BrowserWindow({
-    width: windowWidth,
-    height: windowHeight,
-    x: initialX,
-    y: initialY,
+    width,
+    height,
+    x,
+    y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -315,11 +312,13 @@ function createWindow() {
     skipTaskbar: false,
     autoHideMenuBar: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      sandbox: false,
-      enableRemoteModule: true,
-      audio: true,
+      // FIX: secure webPreferences - no Node.js access in renderer
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      preload: PRELOAD_PATH,
+      // NOTE: removed deprecated enableRemoteModule: true
+      // audio is not a valid webPreference key - handled by media permissions above
     },
   });
 

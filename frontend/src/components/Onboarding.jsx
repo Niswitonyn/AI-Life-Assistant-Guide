@@ -216,8 +216,8 @@ export default function Onboarding() {
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 // use Electron shell if available, else window.open
-                                                if (window.require) {
-                                                    window.require("electron").shell.openExternal(s.link);
+                                                if (window.electronAPI) {
+                                                    window.electronAPI.openExternal(s.link);
                                                 } else {
                                                     window.open(s.link, "_blank");
                                                 }
@@ -297,8 +297,8 @@ export default function Onboarding() {
                                             className="onboarding-link"
                                             onClick={(e) => {
                                                 e.preventDefault();
-                                                if (window.require) {
-                                                    window.require("electron").shell.openExternal(s.link);
+                                                if (window.electronAPI) {
+                                                    window.electronAPI.openExternal(s.link);
                                                 } else {
                                                     window.open(s.link, "_blank");
                                                 }

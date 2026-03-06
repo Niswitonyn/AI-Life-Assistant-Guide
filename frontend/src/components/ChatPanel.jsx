@@ -72,27 +72,19 @@ export default function ChatPanel() {
   }
 
   function openSettings() {
-    try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-        ipcRenderer.send("open-settings");
-      } else {
-        window.location.hash = "/settings";
-      }
-    } catch {
+    if (window.electronAPI) {
+      window.electronAPI.openSettings();
+    } else {
       window.location.hash = "/settings";
     }
   }
 
   function closeChat() {
-    try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-        ipcRenderer.send("close-chat");
-        return;
-      }
-    } catch { }
-    window.close();
+    if (window.electronAPI) {
+      window.electronAPI.closeChat();
+    } else {
+      window.close();
+    }
   }
 
   return (
