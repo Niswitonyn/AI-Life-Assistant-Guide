@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.database.models import Memory, Conversation, Contact
+from app.database.models import Memory, ConversationMemory, Contact
 
 
 class MemoryManager:
@@ -14,10 +14,10 @@ class MemoryManager:
     # -------------------------
     def save_conversation(self, role: str, message: str):
 
-        convo = Conversation(
+        convo = ConversationMemory(
             user_id=self.user_id,
             role=role,
-            message=message
+            content=message
         )
 
         self.db.add(convo)
@@ -29,9 +29,9 @@ class MemoryManager:
     def get_recent_conversation(self, limit: int = 10):
 
         return (
-            self.db.query(Conversation)
-            .filter(Conversation.user_id == self.user_id)
-            .order_by(Conversation.id.desc())
+            self.db.query(ConversationMemory)
+            .filter(ConversationMemory.user_id == self.user_id)
+            .order_by(ConversationMemory.id.desc())
             .limit(limit)
             .all()
         )
@@ -105,8 +105,8 @@ class MemoryManager:
     # -------------------------
     def clear_all(self):
 
-        self.db.query(Conversation).filter(
-            Conversation.user_id == self.user_id
+        self.db.query(ConversationMemory).filter(
+            ConversationMemory.user_id == self.user_id
         ).delete()
 
         self.db.query(Memory).filter(
