@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "../config/api";
+import { getMachineCredentials } from "../utils/machineAuth";
 import "./Login.css";
-
-const DEFAULT_EMAIL = "jarvis@local";
-const DEFAULT_PASS = "jarvis-auto-local";
 
 export default function Login() {
   const [backendReady, setBackendReady] = useState(false);
@@ -48,11 +46,14 @@ export default function Login() {
     setLoading(true);
 
     try {
+      // Get unique machine-local credentials
+      const { email, password } = await getMachineCredentials();
+
       // Try login first
       let res = await fetch(apiUrl("/api/user/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: DEFAULT_EMAIL, password: DEFAULT_PASS }),
+        body: JSON.stringify({ email, password }),
       });
 
       // If user doesn't exist yet, register then login
@@ -61,8 +62,8 @@ export default function Login() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: DEFAULT_EMAIL,
-            password: DEFAULT_PASS,
+            email,
+            password,
             name: "User",
           }),
         });
@@ -70,7 +71,7 @@ export default function Login() {
         // 409 = already exists, that's fine — just means password mismatch
         if (!regRes.ok && regRes.status !== 409) {
           const regData = await regRes.json().catch(() => ({}));
-          setError(regData.detail || "Could not create default account");
+          setError(regData.detail || "Could not create local account");
           setLoading(false);
           return;
         }
@@ -79,7 +80,7 @@ export default function Login() {
         res = await fetch(apiUrl("/api/user/login"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: DEFAULT_EMAIL, password: DEFAULT_PASS }),
+          body: JSON.stringify({ email, password }),
         });
       }
 
@@ -92,8 +93,10 @@ export default function Login() {
       }
 
       setError(data.detail || "Login failed");
-    } catch {
-      setError("Could not connect to backend");
+    } catch (err) {
+      setError(
+        err.message || "Could not connect to backend"
+      );
     } finally {
       setLoading(false);
     }
