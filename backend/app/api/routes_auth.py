@@ -105,7 +105,9 @@ def gmail_login(user_id: str = "default", request: Request = None):
     name = profile.get("name")
 
     user = _upsert_google_user(email=email, name=name)
-    internal_user_id = str(user.id) if user else user_id
+
+    # FIX: always use user.user_id (string UUID), never user.id (integer)
+    internal_user_id = user.user_id if user else user_id
 
     _ensure_token_file(user_id, creds)
     _ensure_token_file(internal_user_id, creds)
@@ -250,7 +252,6 @@ def gmail_callback(code: str = None, state: str = None, request: Request = None)
         if request:
             authorization_response = str(request.url)
         else:
-            # Fallback if request not available
             authorization_response = f"http://localhost:8000/api/auth/gmail/callback?code={code}&state={state}"
 
         creds = flow.fetch_token(authorization_response=authorization_response)
@@ -266,13 +267,14 @@ def gmail_callback(code: str = None, state: str = None, request: Request = None)
 
         # Upsert Google user
         user = _upsert_google_user(email=email, name=name)
-        internal_user_id = str(user.id) if user else user_id
+
+        # FIX: always use user.user_id (string UUID), never user.id (integer)
+        internal_user_id = user.user_id if user else user_id
         _ensure_token_file(internal_user_id, creds)
 
         # Clean up state
         del _oauth_state_cache[state]
 
-        # Return success HTML that closes popup
         return HTMLResponse(
             content=f"""
             <html>
@@ -334,7 +336,9 @@ def gmail_profile(user_id: str = "default"):
     name = profile.get("name")
 
     user = _upsert_google_user(email=email, name=name)
-    internal_user_id = str(user.id) if user else user_id
+
+    # FIX: always use user.user_id (string UUID), never user.id (integer)
+    internal_user_id = user.user_id if user else user_id
     _ensure_token_file(internal_user_id, creds)
 
     return {
