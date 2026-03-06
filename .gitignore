@@ -1,0 +1,44 @@
+# Node
+node_modules
+frontend/node_modules
+
+# Build
+dist
+build
+frontend/release/
+backend/build/
+backend/dist/
+build-vs/
+
+# Environment
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+backend/.venv/
+
+# Tokens / secrets
+tokens/
+
+# Backend sensitive
+backend/app/config/credentials.json
+backend/data/
+backend/app/data/tokens/
+backend/app/data/database/
+backend/app/data/credentials/
+backend/app/data/*.json
+!backend/app/data/*.example.json
+!backend/app/data/contact_manager.pyS
+
+# Python
+__pycache__/
+*.pyc
+# Build
+dist
+build
+frontend/release*
+backend/build/
+backend/dist/
+build-vs/
+win-unpacked/
+*.exe

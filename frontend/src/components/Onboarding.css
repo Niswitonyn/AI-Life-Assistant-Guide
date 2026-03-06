@@ -1,0 +1,403 @@
+.onboarding-wrap {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-gradient);
+    color: var(--text-primary);
+    overflow: hidden;
+    -webkit-app-region: drag;
+}
+
+.onboarding-orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.onboarding-orb.orb1 {
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.14) 0%, transparent 70%);
+    top: 8%;
+    left: 10%;
+    filter: blur(60px);
+    animation: floatA 9s ease-in-out infinite;
+}
+
+.onboarding-orb.orb2 {
+    width: 240px;
+    height: 240px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, transparent 70%);
+    bottom: 12%;
+    right: 10%;
+    filter: blur(50px);
+    animation: floatB 11s ease-in-out infinite;
+}
+
+.onboarding-progress-row {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+    -webkit-app-region: no-drag;
+}
+
+.onboarding-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(1);
+}
+
+.onboarding-dot.active {
+    background: var(--primary-blue);
+    transform: scale(1.25);
+}
+
+.onboarding-step-label {
+    margin-left: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+}
+
+.onboarding-card {
+    position: relative;
+    z-index: 1;
+    width: min(520px, 94vw);
+    max-height: 78vh;
+    overflow-y: auto;
+    padding: 32px 28px 24px;
+    border-radius: 18px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    -webkit-app-region: no-drag;
+}
+
+.onboarding-card.hidden {
+    opacity: 0;
+    transform: translateY(16px);
+}
+
+.onboarding-card::-webkit-scrollbar {
+    width: 6px;
+}
+
+.onboarding-card::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+}
+
+.onboarding-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.onboarding-header-icon {
+    font-size: 34px;
+    line-height: 1;
+    margin-top: 2px;
+}
+
+.onboarding-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-bright);
+}
+
+.onboarding-subtitle {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.onboarding-optional {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.onboarding-provider-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+}
+
+.onboarding-provider-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-provider-card.active {
+    border-color: var(--primary-blue);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.onboarding-provider-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.onboarding-provider-card.active:hover {
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.onboarding-icon-large {
+    font-size: 22px;
+}
+
+.onboarding-provider-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.onboarding-help-box {
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.onboarding-help-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #cbd5e1;
+}
+
+.onboarding-help-step {
+    margin: 0 0 6px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.onboarding-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.onboarding-link {
+    color: #60a5fa;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.onboarding-link:hover {
+    text-decoration: underline;
+}
+
+.onboarding-input {
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-bright);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.onboarding-input:focus {
+    border-color: var(--primary-blue);
+}
+
+.onboarding-file-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.onboarding-file-label {
+    flex: 1;
+    cursor: pointer;
+}
+
+.onboarding-file-inner {
+    display: block;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.2);
+    color: #93c5fd;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.onboarding-file-inner:hover {
+    border-color: #93c5fd;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.onboarding-file-btn {
+    flex: 0 0 auto;
+    padding: 10px 20px;
+}
+
+.onboarding-btn {
+    padding: 12px 20px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-purple) 100%);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+    transition: opacity 0.2s, transform 0.15s ease, box-shadow 0.2s;
+}
+
+.onboarding-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+}
+
+.onboarding-btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.onboarding-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.onboarding-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+}
+
+.onboarding-nav-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #60a5fa;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s, background 0.2s;
+}
+
+.onboarding-nav-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.onboarding-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.onboarding-error {
+    margin: 0;
+    color: var(--error-red);
+    font-size: 13px;
+}
+
+.onboarding-success {
+    margin: 0;
+    color: var(--success-green);
+    font-size: 13px;
+}
+
+.onboarding-done-wrapper {
+    text-align: center;
+    padding: 12px 0;
+}
+
+.onboarding-done-emoji {
+    font-size: 56px;
+    margin-bottom: 8px;
+}
+
+.onboarding-summary-box {
+    margin: 18px auto 0;
+    max-width: 280px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.onboarding-summary-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+}
+
+.onboarding-summary-label {
+    color: var(--text-secondary);
+}
+
+.onboarding-summary-value {
+    color: var(--text-bright);
+    font-weight: 600;
+}
+
+@keyframes floatA {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(50px, -30px) scale(1.12);
+    }
+}
+
+@keyframes floatB {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(-40px, 40px) scale(1.08);
+    }
+}

@@ -1,0 +1,25 @@
+if(DEFINED PROJECT_CONFIG)
+  include("${PROJECT_CONFIG}")
+  return()
+endif()
+
+if(NOT DEFINED PROJECT_ROOT)
+  get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+endif()
+
+set(BACKEND_DIR "${PROJECT_ROOT}/backend")
+set(FRONTEND_DIR "${PROJECT_ROOT}/frontend")
+set(PYTHON_VENV_DIR "${BACKEND_DIR}/.venv")
+set(FRONTEND_RUN_SCRIPT "dev")
+
+find_program(PYTHON_EXECUTABLE NAMES python3 python REQUIRED)
+find_program(NPM_EXECUTABLE NAMES npm.cmd npm REQUIRED)
+if(WIN32)
+  find_program(POWERSHELL_EXECUTABLE NAMES pwsh powershell REQUIRED)
+endif()
+
+if(WIN32)
+  set(VENV_PYTHON "${PYTHON_VENV_DIR}/Scripts/python.exe")
+else()
+  set(VENV_PYTHON "${PYTHON_VENV_DIR}/bin/python")
+endif()

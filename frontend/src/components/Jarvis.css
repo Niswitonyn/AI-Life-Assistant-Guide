@@ -1,0 +1,172 @@
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Orbitron", sans-serif;
+  color: #00e5ff;
+}
+
+.jarvis-container {
+  position: fixed;
+  bottom: 14px;
+  right: 14px;
+  width: 108px;
+  height: 108px;
+  z-index: 9999;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.jarvis-core,
+.jarvis-ring {
+  transition: all 0.3s ease;
+}
+
+.jarvis-ring {
+  position: absolute;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 229, 255, 0.6);
+  box-shadow:
+    0 0 10px #00e5ff,
+    0 0 25px #00e5ff,
+    inset 0 0 15px rgba(0,229,255,0.5);
+  animation: rotate 8s linear infinite;
+}
+
+.jarvis-core {
+  position: absolute;
+  top: 21px;
+  left: 21px;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #00e5ff, #003b55);
+  box-shadow:
+    0 0 20px #00e5ff,
+    0 0 40px #00e5ff,
+    0 0 60px rgba(0,229,255,0.6);
+  animation: idleCore 3.5s ease-in-out infinite;
+}
+
+.jarvis-container:hover .jarvis-core {
+  transform: scale(1.15);
+}
+
+.jarvis-container.listening .jarvis-core {
+  animation: listeningZoom 0.7s ease-in-out infinite;
+  box-shadow:
+    0 0 40px #00e5ff,
+    0 0 80px #00e5ff,
+    0 0 120px rgba(0,229,255,0.9);
+}
+
+.jarvis-container.thinking .jarvis-ring {
+  animation: rotate 1s linear infinite;
+  border-color: rgba(0, 255, 255, 0.9);
+}
+
+.jarvis-container.speaking .jarvis-core {
+  animation: pulse 0.8s infinite;
+}
+
+.jarvis-container.idle {
+  opacity: 0.92;
+}
+
+.jarvis-container.idle .jarvis-core {
+  animation: none;
+  transform: scale(1);
+}
+
+.jarvis-container.idle .jarvis-ring {
+  animation: rotate 14s linear infinite;
+  border-color: rgba(0, 229, 255, 0.45);
+  box-shadow:
+    0 0 8px #00e5ff,
+    0 0 18px rgba(0, 229, 255, 0.45),
+    inset 0 0 10px rgba(0,229,255,0.35);
+}
+
+.jarvis-container:hover {
+  opacity: 1;
+}
+
+.jarvis-menu-btn {
+  position: absolute;
+  top: -7px;
+  right: -10px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(0,229,255,0.45);
+  border-radius: 999px;
+  background: rgba(6, 18, 30, 0.95);
+  color: #9be7ff;
+  cursor: pointer;
+  z-index: 10020;
+}
+
+.jarvis-menu {
+  position: absolute;
+  min-width: 136px;
+  background: rgba(8, 18, 30, 0.98);
+  border: 1px solid rgba(0,229,255,0.3);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.35);
+  z-index: 10020;
+}
+
+.jarvis-menu.right { right: -8px; }
+.jarvis-menu.left { left: -8px; }
+.jarvis-menu.down { top: 30px; }
+.jarvis-menu.up { bottom: 30px; }
+
+.jarvis-menu button {
+  border: 1px solid rgba(0,229,255,0.25);
+  border-radius: 8px;
+  background: rgba(0, 229, 255, 0.08);
+  color: #d8f7ff;
+  font-size: 12px;
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.jarvis-menu button.danger {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(248, 113, 113, 0.12);
+  color: #ffdada;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+
+@keyframes idleCore {
+  0% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.95; }
+}
+
+@keyframes listeningZoom {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.24); }
+  100% { transform: scale(1); }
+}

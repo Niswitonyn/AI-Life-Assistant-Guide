@@ -1,0 +1,90 @@
+.ai-setup-wrap {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top, #0a1f34, #060f1b 60%);
+  color: #e6f2ff;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  -webkit-app-region: drag;
+}
+
+.ai-setup-card {
+  width: min(560px, 94vw);
+  border: 1px solid rgba(86, 197, 255, 0.3);
+  background: rgba(10, 24, 40, 0.92);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.ai-setup-card h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.sub {
+  margin: 0 0 4px;
+  color: #9fc9ef;
+  font-size: 13px;
+}
+
+.ai-setup-card label {
+  font-size: 13px;
+}
+
+.ai-setup-card input,
+.ai-setup-card select {
+  border: 1px solid #2f5678;
+  border-radius: 8px;
+  background: #0b1624;
+  color: #e8f4ff;
+  padding: 10px;
+}
+
+.help-box {
+  border: 1px solid rgba(86, 197, 255, 0.25);
+  border-radius: 10px;
+  background: rgba(8, 17, 28, 0.9);
+  padding: 10px;
+}
+
+.help-box h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.help-box p {
+  margin: 6px 0;
+  font-size: 13px;
+  color: #c9e7ff;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row button {
+  border: 1px solid rgba(86, 197, 255, 0.4);
+  border-radius: 8px;
+  background: rgba(86, 197, 255, 0.2);
+  color: #e8f4ff;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.row button.alt {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(248, 113, 113, 0.16);
+}
+
+.err {
+  margin: 0;
+  color: #ff9b9b;
+  font-size: 13px;
+}
