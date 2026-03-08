@@ -7,6 +7,7 @@ import Login from "./components/Login";
 import Onboarding from "./components/Onboarding";
 import SettingsPanel from "./components/SettingsPanel";
 import AIProviderSetup from "./components/AIProviderSetup";
+import Splash from "./components/Splash";
 import { apiUrl } from "./config/api";
 
 function App() {
@@ -97,45 +98,51 @@ function App() {
     return () => window.removeEventListener("jarvis:setup-updated", refreshStatus);
   }, []);
 
-  // Prevent render until check complete
-  if (!ready || !statusChecked) return null;
-
+  // Prevent rendering app routes until setup check completes,
+  // but always allow the splash route so it shows immediately.
   return (
     <Router>
       <Routes>
-        <Route
-          path="/"
-          element={hasToken
-            ? (aiReady ? <JarvisAvatar /> : <Navigate to="/onboarding" replace />)
-            : <Navigate to="/login" replace />
-          }
-        />
+        {/* Splash is always renderable — no setup check required */}
+        <Route path="/splash" element={<Splash />} />
 
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        {/* All other routes wait for the setup/status check */}
+        {ready && statusChecked ? (
+          <>
+            <Route
+              path="/"
+              element={hasToken
+                ? (aiReady ? <JarvisAvatar /> : <Navigate to="/onboarding" replace />)
+                : <Navigate to="/login" replace />
+              }
+            />
 
-        <Route
-          path="/onboarding"
-          element={hasToken ? <Onboarding /> : <Navigate to="/login" replace />}
-        />
+            <Route
+              path="/login"
+              element={<Login />}
+            />
 
-        {/* Chat Window */}
-        <Route path="/chat" element={<ChatPanel />} />
+            <Route
+              path="/onboarding"
+              element={hasToken ? <Onboarding /> : <Navigate to="/login" replace />}
+            />
 
-        {/* Setup Routes */}
-        <Route
-          path="/provider-setup"
-          element={hasToken ? <AIProviderSetup /> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/settings"
-          element={hasToken ? <SettingsPanel /> : <Navigate to="/login" replace />}
-        />
+            {/* Chat Window */}
+            <Route path="/chat" element={<ChatPanel />} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Setup Routes */}
+            <Route
+              path="/provider-setup"
+              element={hasToken ? <AIProviderSetup /> : <Navigate to="/login" replace />}
+            />
+            <Route
+              path="/settings"
+              element={hasToken ? <SettingsPanel /> : <Navigate to="/login" replace />}
+            />
 
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        ) : null}
       </Routes>
     </Router>
   );

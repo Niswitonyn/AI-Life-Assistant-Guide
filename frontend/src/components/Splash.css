@@ -1,0 +1,88 @@
+.splash {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-gradient);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  overflow: hidden;
+}
+
+/* --- Loading state --- */
+
+.splash-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.splash-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-bright);
+}
+
+.splash-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--primary-cyan);
+  border-radius: 50%;
+  animation: splash-spin 0.9s linear infinite;
+}
+
+@keyframes splash-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Error state --- */
+
+.splash-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 460px;
+  padding: 2.5rem 3rem;
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.splash-error-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--error-red);
+}
+
+.splash-error-message {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.splash-error-button {
+  margin-top: 0.5rem;
+  padding: 0.55rem 1.75rem;
+  background: #b91c1c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.splash-error-button:hover {
+  background: #dc2626;
+}

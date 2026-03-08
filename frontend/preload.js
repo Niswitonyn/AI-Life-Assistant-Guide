@@ -21,4 +21,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   secureSet: (key, value) => ipcRenderer.invoke("secure-set", key, value),
   secureGet: (key) => ipcRenderer.invoke("secure-get", key),
   secureDelete: (key) => ipcRenderer.invoke("secure-delete", key),
+
+  // Backend startup status
+  getBackendStatus: () => ipcRenderer.invoke("get-backend-status"),
+  onBackendStatusUpdate: (callback) =>
+    ipcRenderer.on("backend-status-update", (_, status) => callback(status)),
 });

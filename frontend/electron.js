@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const http = require("http");
 const { spawn } = require("child_process");
 const {
   app,
@@ -11,6 +12,10 @@ const {
   safeStorage,
 } = require("electron");
 
+const BACKEND_HEALTH_URL = "http://127.0.0.1:8000/health";
+const BACKEND_POLL_INTERVAL_MS = 2000;
+const BACKEND_TIMEOUT_MS = 30000;
+
 const isDev = !app.isPackaged;
 const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL || "http://localhost:5173";
 const DIST_INDEX = path.join(__dirname, "dist", "index.html");
@@ -21,6 +26,7 @@ let chatWin = null;
 let fullscreenWatchTimer = null;
 let secureStore = null;
 let backendProcess = null;
+let backendStatus = { ready: false, error: null };
 
 const gotLock = isDev ? true : app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -45,7 +51,6 @@ function revealMainWindow() {
   if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
   if (!win.isVisible()) win.show();
-  win.setAlwaysOnTop(true, "screen-saver");
   win.focus();
 }
 
@@ -180,6 +185,48 @@ ipcMain.handle("secure-delete", (_, key) => {
   return { status: "ok" };
 });
 
+ipcMain.handle("get-backend-status", () => backendStatus);
+
+function pollBackendHealth() {
+  return new Promise((resolve) => {
+    try {
+      const req = http.get(BACKEND_HEALTH_URL, (res) => {
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
+        res.resume();
+      });
+      req.on("error", () => resolve(false));
+      req.setTimeout(1500, () => {
+        req.destroy();
+        resolve(false);
+      });
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function waitForBackend(timeoutMs = BACKEND_TIMEOUT_MS) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const ok = await pollBackendHealth();
+    if (ok) {
+      backendStatus = { ready: true, error: null };
+      if (win && !win.isDestroyed()) {
+        win.webContents.send("backend-status-update", backendStatus);
+      }
+      return;
+    }
+    await new Promise((res) => setTimeout(res, BACKEND_POLL_INTERVAL_MS));
+  }
+  backendStatus = {
+    ready: false,
+    error: "Backend failed to start after 30 seconds. Please restart the application.",
+  };
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("backend-status-update", backendStatus);
+  }
+}
+
 function watchFullscreen() {
   if (fullscreenWatchTimer) clearInterval(fullscreenWatchTimer);
 
@@ -306,7 +353,6 @@ function createWindow() {
     y,
     frame: false,
     transparent: true,
-    alwaysOnTop: true,
     resizable: false,
     hasShadow: true,
     skipTaskbar: false,
@@ -327,11 +373,11 @@ function createWindow() {
 
   if (isDev) {
     const tryLoad = () => {
-      win.loadURL(`${DEV_SERVER_URL}/#/login`).catch(() => setTimeout(tryLoad, 1000));
+      win.loadURL(`${DEV_SERVER_URL}/#/splash`).catch(() => setTimeout(tryLoad, 1000));
     };
     tryLoad();
   } else {
-    loadRenderer(win, "/login");
+    loadRenderer(win, "/splash");
   }
 
   watchFullscreen();
@@ -353,6 +399,7 @@ app.whenReady().then(async () => {
 
   startBundledBackend();
   createWindow();
+  waitForBackend(BACKEND_TIMEOUT_MS); // fire-and-forget; sends IPC updates to the splash screen
   setupAutoUpdater();
   powerMonitor.on("resume", watchFullscreen);
 });
