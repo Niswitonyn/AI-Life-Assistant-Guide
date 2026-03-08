@@ -19,9 +19,9 @@ function App() {
   const [aiReady, setAiReady] = useState(false);
   const [statusChecked, setStatusChecked] = useState(false);
   const [statusNonce, setStatusNonce] = useState(0);
-  const hasToken =
-    typeof window !== "undefined" &&
-    !!window.localStorage.getItem("token");
+  const [hasToken, setHasToken] = useState(
+    typeof window !== "undefined" && !!window.localStorage.getItem("token")
+  );
 
   useEffect(() => {
     if (isElectron) {
@@ -69,7 +69,10 @@ function App() {
     }
 
     let cancelled = false;
-    fetch(apiUrl("/api/setup/status"))
+    const abortCtrl = new AbortController();
+    const timeoutId = setTimeout(() => abortCtrl.abort(), 3000);
+
+    fetch(apiUrl("/api/setup/status"), { signal: abortCtrl.signal })
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -77,15 +80,20 @@ function App() {
       })
       .catch(() => {
         if (cancelled) return;
+        // Backend unreachable or timed out — proceed with aiReady=false so
+        // routes are never blocked indefinitely on a blank transparent window.
         setAiReady(false);
       })
       .finally(() => {
+        clearTimeout(timeoutId);
         if (cancelled) return;
         setStatusChecked(true);
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
+      abortCtrl.abort();
     };
   }, [hasToken, statusNonce]);
 
@@ -96,6 +104,17 @@ function App() {
     }
     window.addEventListener("jarvis:setup-updated", refreshStatus);
     return () => window.removeEventListener("jarvis:setup-updated", refreshStatus);
+  }, []);
+
+  // Re-read the token from localStorage whenever Login (or any component)
+  // dispatches "jarvis:auth-updated".  Without this, App's stale hasToken
+  // closure would redirect the user back to /login immediately after login.
+  useEffect(() => {
+    function onAuthUpdate() {
+      setHasToken(!!window.localStorage.getItem("token"));
+    }
+    window.addEventListener("jarvis:auth-updated", onAuthUpdate);
+    return () => window.removeEventListener("jarvis:auth-updated", onAuthUpdate);
   }, []);
 
   // Prevent rendering app routes until setup check completes,

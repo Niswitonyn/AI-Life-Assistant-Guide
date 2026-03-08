@@ -88,6 +88,9 @@ export default function Login() {
       if (data.token && data.user_id) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user_id", String(data.user_id));
+        // Notify App.jsx to re-read hasToken from localStorage BEFORE the
+        // hash change fires, so the "/" route sees hasToken=true immediately.
+        window.dispatchEvent(new Event("jarvis:auth-updated"));
         window.location.hash = "/";
         return;
       }

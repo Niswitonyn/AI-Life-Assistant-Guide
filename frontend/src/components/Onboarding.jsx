@@ -114,6 +114,7 @@ export default function Onboarding() {
                 return;
             }
             setAiDone(true);
+            setStep(1);
             window.dispatchEvent(new Event("jarvis:setup-updated"));
         } catch {
             setAiError("Could not connect to backend.");
@@ -304,6 +305,12 @@ export default function Onboarding() {
                         >
                             {testStatus === "testing" ? "Testing…" : testStatus === "ok" ? "✅ Connected — Test Again" : "Test Connection"}
                         </button>
+
+                        {aiDone && testStatus !== "error" && (
+                            <p className="onboarding-success">
+                                ✅ Provider saved! Moving to next step...
+                            </p>
+                        )}
 
                         {testMsg && (
                             <p className={testStatus === "ok" ? "onboarding-success" : "onboarding-error"}>

@@ -13,8 +13,8 @@ const {
 } = require("electron");
 
 const BACKEND_HEALTH_URL = "http://127.0.0.1:8000/health";
-const BACKEND_POLL_INTERVAL_MS = 2000;
-const BACKEND_TIMEOUT_MS = 30000;
+const BACKEND_POLL_INTERVAL_MS = 1000;
+const BACKEND_TIMEOUT_MS = 120000;
 
 const isDev = !app.isPackaged;
 const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL || "http://localhost:5173";
@@ -30,6 +30,11 @@ let backendStatus = { ready: false, error: null };
 
 const gotLock = isDev ? true : app.requestSingleInstanceLock();
 if (!gotLock) {
+  // Another instance is already running — write a quick log before quitting
+  try {
+    const tmpLog = path.join(require("os").tmpdir(), "jarvis-second-instance.log");
+    fs.appendFileSync(tmpLog, `[${new Date().toISOString()}] Second instance detected — quitting.\n`);
+  } catch { /* best-effort */ }
   app.quit();
 }
 
@@ -69,8 +74,8 @@ function createChatWindow() {
   }
 
   chatWin = new BrowserWindow({
-    width: 420,
-    height: 600,
+    width: 380,
+    height: 500,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -195,7 +200,7 @@ function pollBackendHealth() {
         res.resume();
       });
       req.on("error", () => resolve(false));
-      req.setTimeout(1500, () => {
+      req.setTimeout(3000, () => {
         req.destroy();
         resolve(false);
       });
@@ -208,6 +213,7 @@ function pollBackendHealth() {
 async function waitForBackend(timeoutMs = BACKEND_TIMEOUT_MS) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    console.log(`[backend] Health check attempt at +${Date.now() - start}ms — ${BACKEND_HEALTH_URL}`);
     const ok = await pollBackendHealth();
     if (ok) {
       backendStatus = { ready: true, error: null };
@@ -220,7 +226,7 @@ async function waitForBackend(timeoutMs = BACKEND_TIMEOUT_MS) {
   }
   backendStatus = {
     ready: false,
-    error: "Backend failed to start after 30 seconds. Please restart the application.",
+    error: "Backend failed to start after 120 seconds. Please restart the application.",
   };
   if (win && !win.isDestroyed()) {
     win.webContents.send("backend-status-update", backendStatus);
@@ -228,48 +234,52 @@ async function waitForBackend(timeoutMs = BACKEND_TIMEOUT_MS) {
 }
 
 function watchFullscreen() {
-  if (fullscreenWatchTimer) clearInterval(fullscreenWatchTimer);
-
-  fullscreenWatchTimer = setInterval(() => {
-    if (!win || win.isDestroyed()) return;
-
-    const isFull = win.isFullScreen();
-    if (isFull) {
-      if (win.isVisible()) win.hide();
-    } else if (!win.isVisible()) {
-      win.showInactive();
-    }
-  }, 2000);
+  // fullscreen hiding disabled
 }
 
 function setupAutoUpdater() {
   if (isDev) return;
-  const { autoUpdater } = require("electron-updater");
 
-  autoUpdater.autoDownload = true;
-  autoUpdater.on("error", (err) => console.error("Auto-update error:", err?.message || err));
-  autoUpdater.on("update-available", () => console.log("Update available"));
-  autoUpdater.on("update-not-available", () => console.log("No update available"));
-  autoUpdater.on("update-downloaded", () => {
-    console.log("Update downloaded; installing...");
-    autoUpdater.quitAndInstall();
-  });
+  // Portable builds (PORTABLE_EXECUTABLE_DIR is set by electron-builder for portable targets).
+  // electron-updater does NOT support portable EXE self-update reliably and, with
+  // autoDownload:true, would download the update and immediately call quitAndInstall()
+  // — which causes the app to silently close ~2 s after launch.
+  if (process.env.PORTABLE_EXECUTABLE_DIR) {
+    console.log("Auto-updater disabled for portable build.");
+    return;
+  }
 
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-    console.error("Update check failed:", err?.message || err);
-  });
+  try {
+    const { autoUpdater } = require("electron-updater");
+
+    autoUpdater.autoDownload = false; // Never download automatically; user must consent.
+    autoUpdater.on("error", (err) => console.error("Auto-update error:", err?.message || err));
+    autoUpdater.on("update-available", () => console.log("Update available"));
+    autoUpdater.on("update-not-available", () => console.log("No update available"));
+    autoUpdater.on("update-downloaded", () => {
+      console.log("Update downloaded; will install on next restart.");
+      // Do NOT call quitAndInstall() automatically — let the user decide.
+    });
+
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      console.error("Update check failed:", err?.message || err);
+    });
+  } catch (err) {
+    console.error("setupAutoUpdater threw:", err?.message || err);
+  }
 }
 
 function startBundledBackend() {
   if (isDev || backendProcess) return;
 
   const candidatePaths = [
-    path.join(process.resourcesPath, "backend", "jarvis-backend.exe"),
-    path.join(path.dirname(process.execPath), "resources", "backend", "jarvis-backend.exe"),
-    process.env.PORTABLE_EXECUTABLE_DIR
-      ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, "resources", "backend", "jarvis-backend.exe")
-      : null,
+    path.join(process.resourcesPath, 'backend', 'jarvis-backend.exe'),
+    path.join(path.dirname(process.execPath), 'resources', 'backend', 'jarvis-backend.exe'),
+    path.join(app.getPath('exe'), '..', 'resources', 'backend', 'jarvis-backend.exe'),
+    path.join(app.getAppPath(), '..', 'backend', 'jarvis-backend.exe'),
   ].filter(Boolean);
+
+  candidatePaths.forEach(p => console.log('Checking backend path:', p, '→ exists:', fs.existsSync(p)));
 
   const backendExe = candidatePaths.find((p) => fs.existsSync(p));
   if (!backendExe) {
@@ -283,6 +293,21 @@ function startBundledBackend() {
   fs.mkdirSync(backendLogDir, { recursive: true });
   const backendOutLog = path.join(backendLogDir, "backend-stdout.log");
   const backendErrLog = path.join(backendLogDir, "backend-stderr.log");
+
+  try {
+    const { execSync } = require('child_process');
+    const result = execSync('netstat -ano | findstr :8000').toString();
+    const lines = result.trim().split('\n');
+    for (const line of lines) {
+      if (line.includes('LISTENING')) {
+        const pid = line.trim().split(/\s+/).pop();
+        execSync(`taskkill /F /PID ${pid}`);
+        console.log(`Killed process on port 8000: PID ${pid}`);
+      }
+    }
+  } catch(e) {
+    // port was free, no action needed
+  }
 
   backendProcess = spawn(backendExe, [], {
     cwd: path.dirname(backendExe),
@@ -380,16 +405,29 @@ function createWindow() {
     loadRenderer(win, "/splash");
   }
 
-  watchFullscreen();
-
   if (isDev) {
     win.webContents.openDevTools({ mode: "detach" });
   }
 }
 
 app.whenReady().then(async () => {
+  // ── Logging setup ─────────────────────────────────────────────────────────
+  // Wrapped in its own try-catch: if the userData dir is somehow
+  // unavailable we still want the rest of the app to start.
+  try {
+    const logFile = path.join(app.getPath('userData'), 'logs', 'electron-main.log');
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+    console.log = (...args) => { logStream.write(args.join(' ') + '\n'); process.stdout.write(args.join(' ') + '\n'); };
+    console.error = (...args) => { logStream.write('[ERR] ' + args.join(' ') + '\n'); process.stderr.write(args.join(' ') + '\n'); };
+    console.log(`[startup] Jarvis starting — packaged=${app.isPackaged} portable=${!!process.env.PORTABLE_EXECUTABLE_DIR} isDev=${isDev}`);
+  } catch (logErr) {
+    process.stderr.write('[ERR] Could not initialise log file: ' + (logErr?.message || logErr) + '\n');
+  }
+
   app.setAppUserModelId("com.jarvis.assistant");
 
+  // ── Secure store ──────────────────────────────────────────────────────────
   try {
     const { default: Store } = await import("electron-store");
     secureStore = new Store({ name: "jarvis-secure-store" });
@@ -397,11 +435,16 @@ app.whenReady().then(async () => {
     console.error("Failed to initialize electron-store:", err?.message || err);
   }
 
-  startBundledBackend();
+  // ── Core startup — must not throw past here ────────────────────────────────
+  try {
+    startBundledBackend();
+  } catch (err) {
+    console.error("startBundledBackend threw:", err?.message || err);
+  }
+
   createWindow();
   waitForBackend(BACKEND_TIMEOUT_MS); // fire-and-forget; sends IPC updates to the splash screen
   setupAutoUpdater();
-  powerMonitor.on("resume", watchFullscreen);
 });
 
 app.on("second-instance", () => {
