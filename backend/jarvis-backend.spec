@@ -138,4 +138,4 @@ exe = EXE(
 #     upx=True,
 #     upx_exclude=[],
 #     name='jarvis-backend',
-)
+# )

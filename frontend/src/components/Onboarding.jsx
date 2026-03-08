@@ -72,6 +72,8 @@ export default function Onboarding() {
     const [aiSaving, setAiSaving] = useState(false);
     const [aiError, setAiError] = useState("");
     const [aiDone, setAiDone] = useState(false);
+    const [testStatus, setTestStatus] = useState(null); // null | "testing" | "ok" | "error"
+    const [testMsg, setTestMsg] = useState("");
 
     /* ── Step 2: Google Gmail state ────────────── */
     const [credFile, setCredFile] = useState(null);
@@ -115,6 +117,52 @@ export default function Onboarding() {
             window.dispatchEvent(new Event("jarvis:setup-updated"));
         } catch {
             setAiError("Could not connect to backend.");
+        } finally {
+            setAiSaving(false);
+        }
+    }
+
+    /* ── test + save AI provider ───────────────── */
+    async function testConnection() {
+        setAiError("");
+        setTestMsg("");
+        if (provider !== "ollama" && !apiKey.trim()) {
+            setAiError("Please paste your API key first.");
+            return;
+        }
+        setTestStatus("testing");
+        setAiSaving(true);
+        try {
+            const saveRes = await fetch(apiUrl("/api/setup/ai"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    provider: provider === "local" ? "ollama" : provider,
+                    api_key: provider === "ollama" ? "" : apiKey.trim(),
+                    model: model.trim(),
+                }),
+            });
+            if (!saveRes.ok) {
+                const d = await saveRes.json().catch(() => ({}));
+                setTestStatus("error");
+                setTestMsg(d.detail || "Failed to save settings.");
+                return;
+            }
+            setAiDone(true);
+            window.dispatchEvent(new Event("jarvis:setup-updated"));
+
+            const healthRes = await fetch(apiUrl("/api/ai/health"));
+            if (healthRes.ok) {
+                setTestStatus("ok");
+                setTestMsg("Connection successful! You can continue to the next step.");
+            } else {
+                const d = await healthRes.json().catch(() => ({}));
+                setTestStatus("error");
+                setTestMsg(d.detail || "AI provider returned an error. Check your API key and try again.");
+            }
+        } catch {
+            setTestStatus("error");
+            setTestMsg("Could not reach the backend. Make sure Jarvis is running.");
         } finally {
             setAiSaving(false);
         }
@@ -192,7 +240,7 @@ export default function Onboarding() {
                                 <button
                                     key={key}
                                     className={`onboarding-provider-card ${provider === key ? "active" : ""}`}
-                                    onClick={() => { setProvider(key); setAiError(""); }}
+                                    onClick={() => { setProvider(key); setAiError(""); setTestStatus(null); setTestMsg(""); }}
                                 >
                                     <span className="onboarding-icon-large">{info.icon}</span>
                                     <span className="onboarding-provider-label">{info.label}</span>
@@ -236,7 +284,7 @@ export default function Onboarding() {
                                 type="password"
                                 placeholder={help.keyPlaceholder}
                                 value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
+                                onChange={(e) => { setApiKey(e.target.value); setTestStatus(null); setTestMsg(""); }}
                             />
                         )}
 
@@ -251,18 +299,24 @@ export default function Onboarding() {
 
                         <button
                             className="onboarding-btn"
-                            onClick={async () => { await saveAI(); }}
-                            disabled={aiSaving}
+                            onClick={testConnection}
+                            disabled={testStatus === "testing"}
                         >
-                            {aiSaving ? "Saving…" : aiDone ? "✅ Saved! Click Next →" : "Save AI Provider"}
+                            {testStatus === "testing" ? "Testing…" : testStatus === "ok" ? "✅ Connected — Test Again" : "Test Connection"}
                         </button>
+
+                        {testMsg && (
+                            <p className={testStatus === "ok" ? "onboarding-success" : "onboarding-error"}>
+                                {testStatus === "ok" ? "✅ " : "❌ "}{testMsg}
+                            </p>
+                        )}
 
                         <div className="onboarding-nav">
                             <span />
                             <button
                                 className="onboarding-nav-btn"
-                                onClick={() => aiDone && setStep(1)}
-                                disabled={!aiDone}
+                                onClick={() => testStatus === "ok" && setStep(1)}
+                                disabled={testStatus !== "ok"}
                             >
                                 Next →
                             </button>

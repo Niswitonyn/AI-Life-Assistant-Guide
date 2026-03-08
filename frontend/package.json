@@ -32,7 +32,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
     "concurrently": "^8.0.0",
-    "electron": "^30.0.0",
+    "electron": "30.0.0",
     "electron-builder": "^25.1.8",
     "vite": "^5.0.0",
     "wait-on": "^9.0.4"
@@ -41,7 +41,7 @@
     "appId": "com.jarvis.assistant",
     "productName": "Jarvis Assistant",
     "directories": {
-      "output": "release"
+      "output": "release-clean2"
     },
     "files": [
       "dist/**",
@@ -69,14 +69,6 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "${env.GH_OWNER}",
-        "repo": "${env.GH_REPO}",
-        "releaseType": "release"
-      }
-    ]
+    }
   }
 }
