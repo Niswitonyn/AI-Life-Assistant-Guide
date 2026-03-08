@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "AI Life Assistant"
     VERSION: str = "0.1.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     HOST: str = "127.0.0.1"
     PORT: int = 8000
@@ -60,7 +60,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = f"sqlite:///{(DB_DIR / 'assistant.db').as_posix()}"
 
     DEFAULT_PROVIDER: str = "ollama"
+    DEFAULT_MODEL: str = "llama3"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
+
+    PUBSUB_TOPIC: str = os.getenv("PUBSUB_TOPIC", "projects/YOUR_PROJECT/topics/gmail-notifications")
 
     KEYS_DIR: str = str(KEYS_DIR_PATH)
     ENCRYPTION_KEY_PATH: str = str(KEYS_DIR_PATH / "secret.key")

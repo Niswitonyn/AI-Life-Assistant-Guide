@@ -101,7 +101,7 @@ async def voice_chat(audio: UploadFile = File(...)):
             )
             raise HTTPException(
                 status_code=504,
-                detail=f"Transcription timed out after {TRANSCRIBE_TIMEOUT_SECONDS}s",
+                detail={"error": "transcription_timeout", "message": f"Transcription timed out after {TRANSCRIBE_TIMEOUT_SECONDS}s"},
             )
         except Exception as e:
             logger.error(f"Transcription failed: {str(e)}")

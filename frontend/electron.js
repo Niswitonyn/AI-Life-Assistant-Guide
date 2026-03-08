@@ -341,16 +341,16 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
-  import("electron-store")
-    .then(({ default: Store }) => {
-      secureStore = new Store({ name: "jarvis-secure-store" });
-    })
-    .catch((err) => {
-      console.error("Failed to initialize electron-store:", err?.message || err);
-    });
-
+app.whenReady().then(async () => {
   app.setAppUserModelId("com.jarvis.assistant");
+
+  try {
+    const { default: Store } = await import("electron-store");
+    secureStore = new Store({ name: "jarvis-secure-store" });
+  } catch (err) {
+    console.error("Failed to initialize electron-store:", err?.message || err);
+  }
+
   startBundledBackend();
   createWindow();
   setupAutoUpdater();

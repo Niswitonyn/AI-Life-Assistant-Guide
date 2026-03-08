@@ -3,6 +3,7 @@ import json
 from app.config.paths import CONTACTS_FILE
 
 from app.agents.gmail_agent import GmailAgent
+from app.ai.provider_factory import provider_factory
 
 # MEMORY
 from app.memory.memory_manager import MemoryManager
@@ -59,8 +60,7 @@ RECENT CONVERSATION:
         full_prompt = context_block + "\n\n" + prompt
 
         payload = {
-            "provider": "ollama",
-            "model": "llama3",
+            "provider": provider_factory.default_provider,
             "messages": [
                 {"role": "user", "content": full_prompt}
             ]

@@ -6,6 +6,7 @@ import uvicorn
 import threading
 import base64
 import json
+import logging
 from app.config.paths import USERS_FILE
 
 # ROUTERS
@@ -33,16 +34,19 @@ from app.api.routes_gsuite import router as gsuite_router
 # -------------------------
 # GLOBAL SERVICES
 # -------------------------
+logger = logging.getLogger(__name__)
+
+voice_assistant = None
 try:
     voice_assistant = VoiceAssistant()
+    logger.info("Voice assistant initialized")
 except Exception as exc:
-    print(f"Voice assistant init failed: {exc}")
-    voice_assistant = None
+    logger.warning(f"Voice assistant init failed (non-critical): {exc}")
 
 # GmailAgent created per user dynamically
 notifier = EmailNotifier(
     gmail_agent=None,
-    voice_assistant=voice_assistant,
+    voice_assistant=voice_assistant if voice_assistant else None,
     ai_url="http://127.0.0.1:8000/api/ai/chat"
 )
 

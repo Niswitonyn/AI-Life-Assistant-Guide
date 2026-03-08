@@ -47,6 +47,7 @@
       "dist/**",
       "dist/index.html",
       "electron.js",
+      "preload.js",
       "package.json"
     ],
     "extraResources": [

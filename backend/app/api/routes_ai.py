@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from urllib.parse import quote_plus
@@ -34,11 +34,25 @@ class ChatMessage(BaseModel):
     content: str
 
 
+_SUPPORTED_PROVIDERS = {"ollama", "openai", "gemini"}
+
+
 class ChatRequest(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
     user_id: str = "default"
     messages: List[ChatMessage]
+
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _validate_provider(cls, v):
+        if v is None:
+            return v
+        if v.lower() not in _SUPPORTED_PROVIDERS:
+            raise ValueError(
+                f"Unsupported provider '{v}'. Must be one of: {sorted(_SUPPORTED_PROVIDERS)}"
+            )
+        return v.lower()
 
 
 class ChatResponse(BaseModel):
@@ -423,7 +437,9 @@ async def chat_endpoint(
             raise HTTPException(status_code=400, detail="messages cannot be empty")
         if not any((msg.content or "").strip() for msg in request.messages if msg.role == "user"):
             raise HTTPException(status_code=400, detail="user message cannot be empty")
-        request_user_id = str(current_user.id) if current_user else ((request.user_id or "default").strip() or "default")
+        request_user_id = str(current_user.id) if current_user else ((request.user_id or "").strip() or "default")
+        if not request_user_id or not request_user_id.strip():
+            request_user_id = "default"
 
         provider = provider_factory.get_provider(
             provider_name=request.provider,

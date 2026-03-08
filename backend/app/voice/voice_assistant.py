@@ -12,6 +12,7 @@ from app.router.command_router import CommandRouter
 from app.agents.browser_agent import BrowserAgent
 from app.agents.file_agent import FileAgent
 from app.automation.system_agent import SystemAgent
+from app.config.settings import settings
 
 
 class VoiceAssistant:
@@ -70,8 +71,8 @@ class VoiceAssistant:
         url = "http://127.0.0.1:8000/api/ai/chat"
 
         payload = {
-            "provider": "ollama",
-            "model": "llama3",
+            "provider": settings.DEFAULT_PROVIDER,
+            "model": settings.DEFAULT_MODEL,
             "messages": [{"role": "user", "content": text}],
         }
 

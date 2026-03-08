@@ -40,7 +40,7 @@ hiddenimports = [
     'app.core',
     'app.database',
     'app.memory',
-    'app.models',
+    'app.database.models',
     'app.notifications',
     'app.rag',
     'app.router',

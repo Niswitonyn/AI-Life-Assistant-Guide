@@ -231,11 +231,13 @@ else:
 | Priority | Issue | Estimated Time | Status |
 |----------|-------|-----------------|--------|
 | HIGH | Unify voice routing | 2 hours | Pending |
-| MEDIUM | Add tests (pytest) | 1.5 hours | Pending |
-| MEDIUM | Fix provider hardcoding | 30 min | Pending |
-| MEDIUM | Voice error handling | 30 min | Pending |
-| LOW | Create .env.example | 10 min | Pending |
-| LOW | Database path creation | 15 min | Pending |
+| MEDIUM | Add tests (pytest) | 1.5 hours | ✅ Resolved (deps in requirements.txt) |
+| MEDIUM | Fix provider hardcoding | 30 min | ✅ Resolved (uses settings.DEFAULT_PROVIDER/MODEL) |
+| MEDIUM | Voice error handling | 30 min | ✅ Resolved (consistent JSON detail) |
+| MEDIUM | Voice init silent failure | 30 min | ✅ Resolved (logger.warning + guard) |
+| MEDIUM | Empty user_id validation | 15 min | ✅ Resolved (explicit safety check) |
+| LOW | Create .env.example | 10 min | ✅ Resolved (file exists) |
+| LOW | Database path creation | 15 min | ✅ Resolved (settings.py mkdir) |
 
 ---
 

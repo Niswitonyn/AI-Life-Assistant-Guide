@@ -1,9 +1,10 @@
 import json
 from app.config.paths import USERS_FILE
+from app.config.settings import settings
 
 def start_watch_for_user(user_id, gmail_agent):
 
-    topic = "projects/YOUR_PROJECT/topics/gmail-notifications"
+    topic = settings.PUBSUB_TOPIC
 
     response = gmail_agent.start_watch(topic)
 
