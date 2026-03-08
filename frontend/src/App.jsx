@@ -99,7 +99,10 @@ function App() {
 
   useEffect(() => {
     function refreshStatus() {
-      setStatusChecked(false);
+      // Do NOT set statusChecked=false here — that would unmount all routes
+      // (including Onboarding) for the duration of the fetch, resetting its
+      // step state and making the window go blank.  Just increment the nonce
+      // so the status effect re-runs in the background while routes stay up.
       setStatusNonce((n) => n + 1);
     }
     window.addEventListener("jarvis:setup-updated", refreshStatus);

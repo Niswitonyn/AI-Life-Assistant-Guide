@@ -116,6 +116,7 @@ export default function Onboarding() {
             setAiDone(true);
             setStep(1);
             window.dispatchEvent(new Event("jarvis:setup-updated"));
+            window.dispatchEvent(new Event("jarvis:auth-updated"));
         } catch {
             setAiError("Could not connect to backend.");
         } finally {
@@ -151,6 +152,7 @@ export default function Onboarding() {
             }
             setAiDone(true);
             window.dispatchEvent(new Event("jarvis:setup-updated"));
+            window.dispatchEvent(new Event("jarvis:auth-updated"));
 
             const healthRes = await fetch(apiUrl("/api/ai/health"));
             if (healthRes.ok) {

@@ -43,7 +43,7 @@
     "productName": "Jarvis Assistant",
     "asar": true,
     "directories": {
-      "output": "release-fix4"
+      "output": "release-fix5"
     },
     "files": [
       "dist/**",
