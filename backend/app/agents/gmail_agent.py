@@ -2,6 +2,7 @@ import os
 import base64
 from email.mime.text import MIMEText
 from pathlib import Path
+import logging
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -12,9 +13,16 @@ from app.config.paths import TOKENS_DIR, CREDENTIALS_FILE
 from app.data.contact_manager import ContactManager
 
 
+logger = logging.getLogger(__name__)
+
+
 class GmailAgent:
 
-    SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+    SCOPES = [
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.readonly",
+    ]
 
     def __init__(self, user_id: str = "default"):
 
@@ -64,6 +72,16 @@ class GmailAgent:
                     creds = None
 
             if not creds or not creds.valid:
+                logger.warning(f"DEBUG EMAIL SEND - request_user_id: {self.user_id}")
+                logger.warning("DEBUG EMAIL SEND - current_user.id: None")
+                logger.warning("DEBUG EMAIL SEND - current_user.user_id: None")
+                logger.warning(f"DEBUG EMAIL SEND - looking for token at: {self.token_path}")
+                logger.warning(f"DEBUG EMAIL SEND - token exists: {self.token_path.exists()}")
+                if TOKENS_DIR.exists():
+                    files = list(TOKENS_DIR.iterdir())
+                    logger.warning(f"DEBUG EMAIL SEND - all token files: {files}")
+                else:
+                    logger.warning(f"DEBUG EMAIL SEND - TOKENS_DIR does not exist: {TOKENS_DIR}")
                 raise PermissionError(
                     f"Gmail is not authenticated for user '{self.user_id}'.\n"
                     f"Please go to Settings → Connect Gmail and complete Google sign-in first."

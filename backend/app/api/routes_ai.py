@@ -4,6 +4,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 from urllib.parse import quote_plus
 import re
+import logging
 from app.ai.provider_factory import provider_factory
 from sqlalchemy.orm import Session
 from fastapi import Depends
@@ -19,10 +20,12 @@ from app.agents.chrome_agent import ChromeAgent
 from app.agents.file_agent import FileAgent
 from app.core.auth import get_optional_current_user
 from app.database.models import User
+from app.config.paths import TOKENS_DIR
 
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # -------------------------
@@ -91,14 +94,28 @@ def _parse_send_email_command(text: str) -> Optional[Dict[str, str]]:
         return None
 
     raw = text.strip()[len(trigger):].strip()
+    raw_lower = raw.lower()
     if not raw:
         return None
 
-    parts = raw.split(" subject ", 1)
-    to_email = parts[0].strip()
-
     subject = "Message from Jarvis"
     body = "Hello,\n\nThis is a message sent by Jarvis.\n\nBest regards"
+
+    # Support: "send email to X saying Y"
+    if " saying " in raw_lower:
+        to_part, body_part = raw.split(" saying ", 1)
+        to_email = to_part.strip()
+        body = body_part.strip() or body
+        if not to_email:
+            return None
+        return {
+            "to": to_email,
+            "subject": subject,
+            "body": body,
+        }
+
+    parts = raw.split(" subject ", 1)
+    to_email = parts[0].strip()
 
     if len(parts) > 1:
         tail = parts[1]
@@ -440,7 +457,7 @@ async def chat_endpoint(
             raise HTTPException(status_code=400, detail="messages cannot be empty")
         if not any((msg.content or "").strip() for msg in request.messages if msg.role == "user"):
             raise HTTPException(status_code=400, detail="user message cannot be empty")
-        request_user_id = str(current_user.id) if current_user else ((request.user_id or "").strip() or "default")
+        request_user_id = current_user.user_id if current_user else ((request.user_id or "").strip() or "default")
         if not request_user_id or not request_user_id.strip():
             request_user_id = "default"
 
@@ -507,21 +524,69 @@ async def chat_endpoint(
                     elif line.startswith("Body: "):
                         body_val = line[len("Body: "):].strip()
                 try:
-                    agent = GmailAgent(user_id=request_user_id)
-                    agent.send_email(to=to_val, subject=subject_val, body=body_val)
+                    logger.warning(f"DEBUG EMAIL SEND - request_user_id: {request_user_id}")
+                    logger.warning(f"DEBUG EMAIL SEND - current_user.id: {getattr(current_user, 'id', None)}")
+                    logger.warning(f"DEBUG EMAIL SEND - current_user.user_id: {getattr(current_user, 'user_id', None)}")
+
+                    token_path = TOKENS_DIR / f"{request_user_id}_gmail_token.json"
+                    logger.warning(f"DEBUG EMAIL SEND - looking for token at: {token_path}")
+                    logger.warning(f"DEBUG EMAIL SEND - token exists: {token_path.exists()}")
+
+                    if TOKENS_DIR.exists():
+                        files = list(TOKENS_DIR.iterdir())
+                        logger.warning(f"DEBUG EMAIL SEND - all token files: {files}")
+                    else:
+                        logger.warning(f"DEBUG EMAIL SEND - TOKENS_DIR does not exist: {TOKENS_DIR}")
+
+                    token_path = TOKENS_DIR / f"{request_user_id}_gmail_token.json"
+                    logger.info(
+                        "Gmail send requested user_id=%s token_path=%s token_exists=%s to=%s",
+                        request_user_id,
+                        str(token_path),
+                        token_path.exists(),
+                        to_val,
+                    )
+
+                    try:
+                        agent = GmailAgent(user_id=request_user_id)
+                    except FileNotFoundError as exc:
+                        logger.exception("GmailAgent init failed (credentials missing)")
+                        reply = f"❌ Gmail credentials not found: {exc}"
+                        raise RuntimeError(reply)
+                    except PermissionError as exc:
+                        logger.exception("GmailAgent init failed (not authenticated)")
+                        reply = f"❌ Gmail not authenticated: {exc}"
+                        raise RuntimeError(reply)
+                    except Exception as exc:
+                        logger.exception("GmailAgent init failed")
+                        reply = f"❌ Email failed: {str(exc)}"
+                        raise RuntimeError(reply)
+
+                    try:
+                        result = agent.send_email(to=to_val, subject=subject_val, body=body_val)
+                        logger.info("Gmail send completed result=%s to=%s", result, to_val)
+                    except Exception as exc:
+                        logger.exception("Gmail send_email threw exception")
+                        reply = f"❌ Email failed: {str(exc)}"
+                        raise RuntimeError(reply)
+
                     reply = f"✅ Email sent to {to_val}"
                 except Exception as exc:
                     err = str(exc)
-                    if "not authenticated" in err.lower() or "not found" in err.lower() or "permissionerror" in err.lower():
-                        reply = (
-                            "❌ Gmail is not connected. "
-                            "Please go to Settings → Connect Gmail and sign in with Google first."
-                        )
-                    elif "credentials" in err.lower():
-                        reply = (
-                            "❌ Gmail credentials missing. "
-                            "Please upload credentials.json in Settings first."
-                        )
+                    if "gmail is not authenticated" in err.lower() or "connect gmail" in err.lower():
+                        logger.warning(f"DEBUG EMAIL SEND - request_user_id: {request_user_id}")
+                        logger.warning(f"DEBUG EMAIL SEND - current_user.id: {getattr(current_user, 'id', None)}")
+                        logger.warning(f"DEBUG EMAIL SEND - current_user.user_id: {getattr(current_user, 'user_id', None)}")
+                        token_path = TOKENS_DIR / f"{request_user_id}_gmail_token.json"
+                        logger.warning(f"DEBUG EMAIL SEND - looking for token at: {token_path}")
+                        logger.warning(f"DEBUG EMAIL SEND - token exists: {token_path.exists()}")
+                        if TOKENS_DIR.exists():
+                            files = list(TOKENS_DIR.iterdir())
+                            logger.warning(f"DEBUG EMAIL SEND - all token files: {files}")
+                        else:
+                            logger.warning(f"DEBUG EMAIL SEND - TOKENS_DIR does not exist: {TOKENS_DIR}")
+                    if err.startswith("❌ "):
+                        reply = err
                     else:
                         reply = f"❌ Could not send email: {err}"
                 memory.save_message(request_user_id, "user", latest_user_message)

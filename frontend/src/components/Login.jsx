@@ -18,6 +18,7 @@ export default function Login() {
   const [gmailConnecting, setGmailConnecting] = useState(false);
   const [gmailMsg, setGmailMsg] = useState("");
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailHelpMsg, setGmailHelpMsg] = useState("");
 
   /* ── poll backend health ─────────────────────────────── */
   useEffect(() => {
@@ -146,6 +147,7 @@ export default function Login() {
     window.electronAPI?.setAlwaysOnTop?.(false);
     setGmailConnecting(true);
     setGmailMsg("Opening Google sign-in in your browser...");
+    setGmailHelpMsg("");
     const userId = localStorage.getItem("user_id") || "default";
     let timeout;
     try {
@@ -162,10 +164,26 @@ export default function Login() {
       const data = await res.json();
       if (data.token) localStorage.setItem("token", data.token);
       if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
+      if (data.email) {
+        setGmailConnected(true);
+        setGmailMsg("✅ Gmail connected as " + data.email);
+        return;
+      }
       setGmailConnected(true);
-      setGmailMsg("✅ Gmail connected as " + (data.email || "unknown"));
+      setGmailMsg("✅ Gmail connected.");
     } catch (err) {
-      setGmailMsg("❌ " + (err.message || "Gmail connect failed."));
+      const raw = String(err?.message || "Gmail connect failed.");
+      const lower = raw.toLowerCase();
+      setGmailMsg("❌ " + raw);
+      if (lower.includes("credentials")) {
+        setGmailHelpMsg("credentials.json not found — re-upload it");
+      } else if (lower.includes("token") || lower.includes("authenticated")) {
+        setGmailHelpMsg("Gmail token invalid — click Sign in again");
+      } else if (lower.includes("scope")) {
+        setGmailHelpMsg("Permission issue — disconnect and reconnect Gmail");
+      } else {
+        setGmailHelpMsg(raw);
+      }
     } finally {
       setGmailConnecting(false);
       clearTimeout(timeout);
@@ -454,6 +472,23 @@ export default function Login() {
               }}>
                 {gmailMsg}
               </p>
+            )}
+
+            {gmailHelpMsg && (
+              <div style={{
+                width: "100%",
+                background: "rgba(239, 68, 68, 0.12)",
+                border: "1px solid rgba(239, 68, 68, 0.4)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                color: "#fca5a5",
+                fontSize: 12,
+                lineHeight: 1.5,
+                textAlign: "left",
+                boxSizing: "border-box",
+              }}>
+                {gmailHelpMsg}
+              </div>
             )}
 
             {gmailConnected && (

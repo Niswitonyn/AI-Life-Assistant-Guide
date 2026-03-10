@@ -45,23 +45,12 @@ const providerInfo = {
     },
 };
 
-const gmailSteps = [
-    { text: "Go to", link: "https://console.cloud.google.com/", linkLabel: "Google Cloud Console" },
-    { text: 'Create a new project (or select an existing one).' },
-    { text: 'Navigate to "APIs & Services → Credentials".' },
-    { text: 'Click "Create Credentials → OAuth client ID".' },
-    { text: 'Set application type to "Desktop app" and click Create.' },
-    { text: 'Download the JSON file (it starts with "client_secret_…").' },
-    { text: 'Enable the Gmail API: go to "APIs & Services → Library", search "Gmail API", and click Enable.' },
-    { text: "Upload the downloaded JSON file below." },
-];
-
 /* ═══════════════════════════════════════════════════════
    COMPONENT
    ═══════════════════════════════════════════════════════ */
 
 export default function Onboarding() {
-    const TOTAL_STEPS = 4;
+    const TOTAL_STEPS = 3;
     const [step, setStep] = useState(0);
     const [fadeIn, setFadeIn] = useState(false);
 
@@ -82,6 +71,7 @@ export default function Onboarding() {
     const [gmailDone, setGmailDone] = useState(false);
     const [gmailConnecting, setGmailConnecting] = useState(false);
     const [gmailConnected, setGmailConnected] = useState(false);
+    const [gmailEmail, setGmailEmail] = useState("");
     const [gmailConnectMsg, setGmailConnectMsg] = useState("");
 
     const help = useMemo(() => providerInfo[provider], [provider]);
@@ -92,6 +82,21 @@ export default function Onboarding() {
         const t = setTimeout(() => setFadeIn(true), 60);
         return () => clearTimeout(t);
     }, [step]);
+
+    useEffect(() => {
+        const userId = localStorage.getItem("user_id") || "default";
+        fetch(apiUrl("/api/auth/gmail/profile") + "?user_id=" + userId)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data && data.email) {
+                    setGmailConnected(true);
+                    setGmailDone(true);
+                    setGmailEmail(data.email);
+                    setGmailConnectMsg("✅ Gmail already connected as " + data.email);
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     /* ── save AI provider ──────────────────────── */
     async function saveAI() {
@@ -210,7 +215,7 @@ export default function Onboarding() {
         const userId = localStorage.getItem("user_id") || "default";
         try {
             const res = await fetch(
-                apiUrl("/api/auth/gmail/login/init") + "?user_id=" + userId
+                apiUrl("/api/auth/gmail/login") + "?user_id=" + userId
             );
             if (!res.ok) {
                 const d = await res.json().catch(() => ({}));
@@ -240,6 +245,7 @@ export default function Onboarding() {
                     await window.electronAPI.secureSet("gmail_profile", profile);
                 }
                 setGmailConnected(true);
+                setGmailEmail(data.email || "");
                 setGmailConnectMsg("✅ Gmail connected! You can now send and read emails.");
             } else {
                 setGmailConnectMsg(
@@ -278,7 +284,7 @@ export default function Onboarding() {
 
             {/* progress bar */}
             <div className="onboarding-progress-row">
-                {[0, 1, 2, 3].map((i) => (
+                {[0, 1, 2].map((i) => (
                     <div
                         key={i}
                         className={`onboarding-dot ${i <= step ? "active" : ""}`}
@@ -408,6 +414,25 @@ export default function Onboarding() {
                                 </p>
                             </div>
                         </div>
+
+                        {gmailConnected && (
+                            <div style={{
+                                padding: "14px 18px", borderRadius: 12,
+                                background: "rgba(52, 211, 153, 0.08)",
+                                border: "1px solid rgba(52, 211, 153, 0.25)",
+                                textAlign: "center", marginBottom: 12,
+                            }}>
+                                <p style={{ margin: 0, color: "#34d399", fontWeight: 700 }}>
+                                    ✅ Gmail is already connected!
+                                </p>
+                                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6ee7b7" }}>
+                                    {gmailEmail} is linked to Jarvis. You can reconnect below if needed.
+                                </p>
+                            </div>
+                        )}
+
+                        {!gmailConnected && (
+                            <>
 
                         <div className="onboarding-help-box" style={{ maxHeight: 340, overflowY: "auto" }}>
                             <p className="onboarding-help-title">Step-by-step setup:</p>
@@ -551,6 +576,9 @@ export default function Onboarding() {
                             </p>
                         )}
 
+                            </>
+                        )}
+
                         {gmailDone && (
                             <button
                                 className="onboarding-btn"
@@ -604,114 +632,8 @@ export default function Onboarding() {
                     </>
                 )}
 
-                {/* ─── STEP 2 : Google Gmail Credentials ─────── */}
+                {/* ─── STEP 2 : All Done ─────────────────────── */}
                 {step === 2 && (
-                    <>
-                        <div className="onboarding-header">
-                            <span className="onboarding-header-icon">📧</span>
-                            <div>
-                                <h2 className="onboarding-title">Connect Gmail <span className="onboarding-optional">(Optional)</span></h2>
-                                <p className="onboarding-subtitle">
-                                    Upload your Google Cloud OAuth credentials so Jarvis can read and send emails for you.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="onboarding-help-box">
-                            <p className="onboarding-help-title">How to get your credentials.json:</p>
-                            {gmailSteps.map((s, i) => (
-                                <p key={i} className="onboarding-help-step">
-                                    <span className="onboarding-step-num">{i + 1}</span>
-                                    {s.text}{" "}
-                                    {s.link && (
-                                        <a
-                                            href={s.link}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="onboarding-link"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                if (window.electronAPI) {
-                                                    window.electronAPI.openExternal(s.link);
-                                                } else {
-                                                    window.open(s.link, "_blank");
-                                                }
-                                            }}
-                                        >
-                                            {s.linkLabel}  ↗
-                                        </a>
-                                    )}
-                                </p>
-                            ))}
-                        </div>
-
-                        <div className="onboarding-file-row">
-                            <label className="onboarding-file-label">
-                                <input
-                                    type="file"
-                                    accept=".json,application/json"
-                                    style={{ display: "none" }}
-                                    onChange={(e) => {
-                                        setCredFile(e.target.files?.[0] || null);
-                                        setGmailMsg("");
-                                    }}
-                                />
-                                <span className="onboarding-file-inner">
-                                    {credFile ? `📄 ${credFile.name}` : "Choose credentials.json"}
-                                </span>
-                            </label>
-                            <button
-                                className="onboarding-btn onboarding-file-btn"
-                                onClick={uploadGmail}
-                                disabled={gmailUploading}
-                            >
-                                {gmailUploading ? "Uploading…" : "Upload"}
-                            </button>
-                        </div>
-
-                        {gmailMsg && (
-                            <p className={gmailMsg.startsWith("✅") ? "onboarding-success" : "onboarding-error"}>{gmailMsg}</p>
-                        )}
-
-                        {gmailDone && (
-                            <button
-                                className="onboarding-btn"
-                                onClick={connectGmail}
-                                disabled={gmailConnecting}
-                                style={{ marginTop: 8 }}
-                            >
-                                {gmailConnecting
-                                    ? "Opening Google sign-in…"
-                                    : gmailConnected
-                                        ? "✅ Signed in — Sign in again"
-                                        : "🔗 Sign in with Google"}
-                            </button>
-                        )}
-
-                        {gmailConnectMsg && (
-                            <p className={
-                                gmailConnectMsg.startsWith("✅")
-                                    ? "onboarding-success"
-                                    : "onboarding-error"
-                            }>
-                                {gmailConnectMsg}
-                            </p>
-                        )}
-
-                        <div className="onboarding-nav">
-                            <button className="onboarding-nav-btn" onClick={() => setStep(1)}>← Back</button>
-                            <button
-                                className="onboarding-nav-btn"
-                                onClick={() => setStep(3)}
-                            >
-                                {gmailConnected ? "Next →" : "Skip for now →"}
-                            </button>
-                        </div>
-                    </>
-                )}
-
-                {/* ─── STEP 3 : All Done ─────────────────────── */}
-                {step === 3 && (
                     <>
                         <div className="onboarding-done-wrapper">
                             <div className="onboarding-done-emoji">🎉</div>
@@ -731,7 +653,7 @@ export default function Onboarding() {
                                 <div className="onboarding-summary-row">
                                     <span className="onboarding-summary-label">Gmail</span>
                                     <span className="onboarding-summary-value">
-                                        {gmailDone ? "✅ Connected" : "⏭️ Skipped"}
+                                        {gmailConnected ? `✅ ${gmailEmail || "Connected"}` : "⏭️ Skipped"}
                                     </span>
                                 </div>
                             </div>
@@ -742,7 +664,7 @@ export default function Onboarding() {
                         </button>
 
                         <div className="onboarding-nav">
-                            <button className="onboarding-nav-btn" onClick={() => setStep(2)}>← Back</button>
+                            <button className="onboarding-nav-btn" onClick={() => setStep(1)}>← Back</button>
                             <span />
                         </div>
                     </>

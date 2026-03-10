@@ -86,76 +86,30 @@ export default function SettingsPanel() {
 
     setConnectingGmail(true);
     setMessage("");
+    let timeout;
 
     try {
-      const initRes = await fetch(
-        apiUrl("/api/auth/gmail/login/init") + "?user_id=" + userId
+      const controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), 300000);
+      const res = await fetch(
+        apiUrl("/api/auth/gmail/login") + "?user_id=" + userId,
+        { signal: controller.signal }
       );
-
-      if (!initRes.ok) {
-        const d = await initRes.json().catch(() => ({}));
-        const detail = d.detail || "Failed to start OAuth.";
-        if (detail.includes("Redirect URI") || detail.includes("redirect")) {
-          setMessage(
-            "Redirect URI missing. In Google Cloud Console add: " +
-            "http://localhost:8000/api/auth/gmail/callback " +
-            "as an Authorized Redirect URI, re-download credentials.json and re-upload here."
-          );
-        } else {
-          setMessage("❌ " + detail);
-        }
-        return;
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || "Gmail connect failed.");
       }
 
-      const data = await initRes.json();
-
-      if (window.electronAPI?.openOAuthPopup) {
-        await window.electronAPI.openOAuthPopup(data.auth_url);
-      } else {
-        const popup = window.open(
-          data.auth_url,
-          "_blank",
-          "width=560,height=760"
-        );
-        if (!popup) {
-          setMessage("Popup blocked. Please allow popups and try again.");
-          return;
-        }
-        await new Promise(resolve => {
-          const timer = setInterval(() => {
-            if (popup.closed) {
-              clearInterval(timer);
-              resolve();
-            }
-          }, 500);
-        });
-      }
-
-      // Confirm token was saved by fetching profile
-      const profileRes = await fetch(
-        apiUrl("/api/auth/gmail/profile") + "?user_id=" + userId
-      );
-      if (profileRes.ok) {
-        const profile = await profileRes.json();
-        if (profile.token) localStorage.setItem("token", profile.token);
-        if (profile.user_id) {
-          localStorage.setItem("user_id", String(profile.user_id));
-        }
-        if (window.electronAPI?.secureSet) {
-          await window.electronAPI.secureSet("gmail_profile", profile);
-        }
-        setMessage("✅ Gmail connected as " + (profile.email || "unknown"));
-        loadStatus();
-      } else {
-        setMessage(
-          "⚠️ Sign-in window closed but token not confirmed. " +
-          "Please try Connect Gmail again."
-        );
-      }
+      const data = await res.json();
+      if (data.token) localStorage.setItem("token", data.token);
+      if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
+      setMessage("✅ Gmail connected as " + (data.email || "unknown"));
+      loadStatus();
     } catch (err) {
-      setMessage("❌ Gmail connect failed: " + (err.message || err));
+      setMessage("❌ " + (err.message || "Gmail connect failed."));
     } finally {
       setConnectingGmail(false);
+      clearTimeout(timeout);
     }
   }
 

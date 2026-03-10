@@ -51,9 +51,14 @@ export default function ChatPanel({ onClose }) {
         }
       );
 
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Backend error");
+      }
+
       const data = await res.json();
 
-      const reply = data.response || "Okay";
+      const reply = data.response || data.detail || "Something went wrong. Check your Gmail connection in Settings.";
 
       setMessages(prev => [
         ...prev,
@@ -62,6 +67,13 @@ export default function ChatPanel({ onClose }) {
 
     } catch (err) {
       console.error(err);
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "assistant",
+          content: err?.message || "Something went wrong. Check your Gmail connection in Settings.",
+        }
+      ]);
     }
 
     setLoading(false);

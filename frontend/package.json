@@ -19,6 +19,7 @@
     "dist": "npm run build:renderer && electron-builder",
     "dist:win": "npm run build:renderer && electron-builder --win portable",
     "dist:win:standalone": "npm run build:renderer && electron-builder --win portable",
+    "predist:win:portable": "node scripts/clean-release.js",
     "dist:win:portable": "npm run build:renderer && electron-builder --win portable",
     "dist:win:fix": "npm run build:renderer && electron-builder --win portable"
   },

@@ -105,7 +105,9 @@ async def gmail_login(user_id: str = "default"):
 
             logger.info(f"Got profile: {email}")
 
-            token_path = Path(creds_path).parent / f"{user_id}_gmail_token.json"
+            # FIX: save to TOKENS_DIR — same path gmail_agent.py reads from
+            TOKENS_DIR.mkdir(parents=True, exist_ok=True)
+            token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
             token_path.write_text(creds.to_json())
 
             logger.info(f"Token saved to {token_path}")
