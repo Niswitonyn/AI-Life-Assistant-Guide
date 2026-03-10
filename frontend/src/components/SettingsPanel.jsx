@@ -13,6 +13,7 @@ export default function SettingsPanel() {
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const [connectingGmail, setConnectingGmail] = useState(false);
   const [message, setMessage] = useState("");
   const [googleStatus, setGoogleStatus] = useState({
     has_credentials: false,
@@ -72,69 +73,90 @@ export default function SettingsPanel() {
     }
   }
 
-  function connectGmail() {
+  async function connectGmail() {
     const userId = localStorage.getItem("user_id") || "default";
+
     if (!googleStatus.has_credentials) {
-      setMessage("Upload Google Cloud credentials.json first.");
+      setMessage(
+        "Upload credentials.json first. " +
+        "Download it from Google Cloud Console → APIs & Services → Credentials."
+      );
       return;
     }
 
-    setConnecting(true);
+    setConnectingGmail(true);
     setMessage("");
 
-    if (window.electronAPI) {
-      // Electron path: use two-step OAuth flow
-      fetch(`${apiUrl("/api/auth/gmail/login/init")}?user_id=${userId}`)
-        .then((res) => {
-          if (!res.ok) {
-            return res.json().then((data) => {
-              throw new Error(data.detail || "Failed to initialize OAuth");
-            });
-          }
-          return res.json();
-        })
-        .then((data) => {
-          // Step 1: Get auth URL, Step 2: Open popup
-          return window.electronAPI.openOAuthPopup(data.auth_url);
-        })
-        .then(async () => {
-          // Step 3: After popup closes, fetch profile and store tokens
-          try {
-            const profileRes = await fetch(`${apiUrl("/api/auth/gmail/profile")}?user_id=${userId}`);
-            if (profileRes.ok) {
-              const profile = await profileRes.json();
-              if (profile.token) localStorage.setItem("token", profile.token);
-              if (profile.user_id) localStorage.setItem("user_id", String(profile.user_id));
-              await window.electronAPI.secureSet("gmail_profile", profile);
+    try {
+      const initRes = await fetch(
+        apiUrl("/api/auth/gmail/login/init") + "?user_id=" + userId
+      );
+
+      if (!initRes.ok) {
+        const d = await initRes.json().catch(() => ({}));
+        const detail = d.detail || "Failed to start OAuth.";
+        if (detail.includes("Redirect URI") || detail.includes("redirect")) {
+          setMessage(
+            "Redirect URI missing. In Google Cloud Console add: " +
+            "http://localhost:8000/api/auth/gmail/callback " +
+            "as an Authorized Redirect URI, re-download credentials.json and re-upload here."
+          );
+        } else {
+          setMessage("❌ " + detail);
+        }
+        return;
+      }
+
+      const data = await initRes.json();
+
+      if (window.electronAPI?.openOAuthPopup) {
+        await window.electronAPI.openOAuthPopup(data.auth_url);
+      } else {
+        const popup = window.open(
+          data.auth_url,
+          "_blank",
+          "width=560,height=760"
+        );
+        if (!popup) {
+          setMessage("Popup blocked. Please allow popups and try again.");
+          return;
+        }
+        await new Promise(resolve => {
+          const timer = setInterval(() => {
+            if (popup.closed) {
+              clearInterval(timer);
+              resolve();
             }
-          } catch { }
-          setConnecting(false);
-          setMessage("Gmail connected.");
-          loadStatus();
-        })
-        .catch((err) => {
-          setConnecting(false);
-          setMessage(`Gmail OAuth failed: ${err.message || err}`);
+          }, 500);
         });
-      return;
-    }
+      }
 
-    // Web path: use direct login endpoint (fallback)
-    const oauthUrl = `${apiUrl("/api/auth/gmail/login")}?user_id=${userId}`;
-    const popup = window.open(oauthUrl, "_blank");
-    if (!popup) {
-      setConnecting(false);
-      setMessage("Popup blocked.");
-      return;
+      // Confirm token was saved by fetching profile
+      const profileRes = await fetch(
+        apiUrl("/api/auth/gmail/profile") + "?user_id=" + userId
+      );
+      if (profileRes.ok) {
+        const profile = await profileRes.json();
+        if (profile.token) localStorage.setItem("token", profile.token);
+        if (profile.user_id) {
+          localStorage.setItem("user_id", String(profile.user_id));
+        }
+        if (window.electronAPI?.secureSet) {
+          await window.electronAPI.secureSet("gmail_profile", profile);
+        }
+        setMessage("✅ Gmail connected as " + (profile.email || "unknown"));
+        loadStatus();
+      } else {
+        setMessage(
+          "⚠️ Sign-in window closed but token not confirmed. " +
+          "Please try Connect Gmail again."
+        );
+      }
+    } catch (err) {
+      setMessage("❌ Gmail connect failed: " + (err.message || err));
+    } finally {
+      setConnectingGmail(false);
     }
-
-    const timer = setInterval(() => {
-      if (!popup.closed) return;
-      clearInterval(timer);
-      setConnecting(false);
-      setMessage("Gmail connected.");
-      loadStatus();
-    }, 1000);
   }
 
   async function disconnectGmail() {
@@ -239,11 +261,53 @@ export default function SettingsPanel() {
         </section>
 
         <section>
+          <label>Gmail Connection</label>
+
+          <div style={{
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: "rgba(0,0,0,0.2)",
+            fontSize: 13,
+            color: "#94a3b8",
+            lineHeight: 1.7,
+          }}>
+            <p style={{ margin: "0 0 6px", color: "#cbd5e1", fontWeight: 600 }}>
+              How to connect your Gmail:
+            </p>
+            <p style={{ margin: "0 0 4px" }}>
+              1. Click <strong style={{ color: "#e2e8f0" }}>Connect Gmail</strong> below.
+            </p>
+            <p style={{ margin: "0 0 4px" }}>
+              2. A Google sign-in window will open — sign in with your Gmail account.
+            </p>
+            <p style={{ margin: "0 0 4px" }}>
+              3. If Google shows <strong style={{ color: "#e2e8f0" }}>"This app isn't verified"</strong>,
+              click <strong style={{ color: "#e2e8f0" }}>Advanced</strong> then
+              <strong style={{ color: "#e2e8f0" }}> Go to Jarvis Assistant (unsafe)</strong>.
+            </p>
+            <p style={{ margin: "0 0 4px" }}>
+              4. Click <strong style={{ color: "#e2e8f0" }}>Allow</strong> on all permission screens.
+            </p>
+            <p style={{ margin: "0 0 4px" }}>
+              5. The window closes automatically when done.
+            </p>
+            <p style={{ margin: "10px 0 0", fontSize: 11, color: "#64748b" }}>
+              🔒 Your Gmail token is stored locally on your device only.
+              You can disconnect anytime.
+            </p>
+          </div>
+
           <div className="row">
-            <button onClick={connectGmail} disabled={connecting}>
-              {connecting ? "Connecting..." : "Connect Gmail"}
+            <button onClick={connectGmail} disabled={connectingGmail}>
+              {connectingGmail ? "Opening Google sign-in…" : "🔗 Connect Gmail"}
             </button>
             <button onClick={disconnectGmail}>Disconnect Gmail</button>
+          </div>
+
+          <div className="status-row" style={{ justifyContent: "flex-start" }}>
+            <span className={status.gmail_ready ? "ok" : "bad"}>
+              {status.gmail_ready ? "Gmail connected" : "Gmail not connected"}
+            </span>
           </div>
         </section>
 

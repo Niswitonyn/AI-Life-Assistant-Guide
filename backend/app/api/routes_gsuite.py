@@ -25,6 +25,8 @@ def gmail_send(request: SendEmailRequest):
             body=request.body,
         )
         return {"status": "ok", "message": result}
+    except (FileNotFoundError, PermissionError) as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

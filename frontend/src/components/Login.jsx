@@ -9,6 +9,16 @@ export default function Login() {
   const [error, setError] = useState("");
   const [fadeIn, setFadeIn] = useState(false);
 
+  const [step, setStep] = useState("login");
+  // "login" | "setup-info" | "upload-creds" | "connect-gmail"
+  const [credFile, setCredFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState("");
+  const [uploadDone, setUploadDone] = useState(false);
+  const [gmailConnecting, setGmailConnecting] = useState(false);
+  const [gmailMsg, setGmailMsg] = useState("");
+  const [gmailConnected, setGmailConnected] = useState(false);
+
   /* ── poll backend health ─────────────────────────────── */
   useEffect(() => {
     let cancelled = false;
@@ -88,10 +98,9 @@ export default function Login() {
       if (data.token && data.user_id) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user_id", String(data.user_id));
-        // Notify App.jsx to re-read hasToken from localStorage BEFORE the
-        // hash change fires, so the "/" route sees hasToken=true immediately.
         window.dispatchEvent(new Event("jarvis:auth-updated"));
-        window.location.hash = "/";
+        setStep("setup-info");
+        setLoading(false);
         return;
       }
 
@@ -105,6 +114,71 @@ export default function Login() {
     }
   };
 
+  async function uploadCredentials() {
+    if (!credFile) {
+      setUploadMsg("Please choose your credentials.json file first.");
+      return;
+    }
+    setUploading(true);
+    setUploadMsg("");
+    try {
+      const form = new FormData();
+      form.append("file", credFile);
+      const res = await fetch(apiUrl("/api/setup/gmail"), {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUploadMsg("❌ " + (data.detail || "Upload failed."));
+        return;
+      }
+      setUploadMsg("✅ Credentials saved!");
+      setUploadDone(true);
+    } catch {
+      setUploadMsg("❌ Could not upload file.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function connectGmail() {
+    window.electronAPI?.setAlwaysOnTop?.(false);
+    setGmailConnecting(true);
+    setGmailMsg("Opening Google sign-in in your browser...");
+    const userId = localStorage.getItem("user_id") || "default";
+    let timeout;
+    try {
+      const controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), 300000);
+      const res = await fetch(
+        apiUrl("/api/auth/gmail/login") + "?user_id=" + userId,
+        { signal: controller.signal }
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || "Gmail connect failed.");
+      }
+      const data = await res.json();
+      if (data.token) localStorage.setItem("token", data.token);
+      if (data.user_id) localStorage.setItem("user_id", String(data.user_id));
+      setGmailConnected(true);
+      setGmailMsg("✅ Gmail connected as " + (data.email || "unknown"));
+    } catch (err) {
+      setGmailMsg("❌ " + (err.message || "Gmail connect failed."));
+    } finally {
+      setGmailConnecting(false);
+      clearTimeout(timeout);
+      window.electronAPI?.setAlwaysOnTop?.(true);
+    }
+  }
+
+  function finishSetup() {
+    window.electronAPI?.setAlwaysOnTop?.(true);
+    window.dispatchEvent(new Event("jarvis:auth-updated"));
+    window.location.hash = "/";
+  }
+
   /* ── render ──────────────────────────────────────────── */
   return (
     <div className="login-wrap">
@@ -114,34 +188,291 @@ export default function Login() {
       <div className="login-orb orb3" />
 
       <div className={`login-card ${fadeIn ? "" : "hidden"}`}>
-        {/* logo / icon */}
-        <div className="login-logo-wrap">
-          <div className="login-logo-circle">
-            <span className="login-logo-emoji">🤖</span>
-          </div>
-        </div>
+        {step === "login" && (
+          <>
+            {/* logo / icon */}
+            <div className="login-logo-wrap">
+              <div className="login-logo-circle">
+                <span className="login-logo-emoji">🤖</span>
+              </div>
+            </div>
 
-        <h1 className="login-title">Jarvis Assistant</h1>
-        <p className="login-subtitle">
-          Your personal AI-powered life assistant —<br />
-          ready to help you organise, automate, and thrive.
-        </p>
+            <h1 className="login-title">Jarvis Assistant</h1>
+            <p className="login-subtitle">
+              Your personal AI-powered life assistant —<br />
+              ready to help you organise, automate, and thrive.
+            </p>
 
-        <button
-          className="login-button"
-          onClick={enter}
-          disabled={!backendReady || loading}
-        >
-          {loading
-            ? "Setting things up…"
-            : !backendReady
-              ? "⏳  Connecting to backend…"
-              : "🚀  Get Started"}
-        </button>
+            <button
+              className="login-button"
+              onClick={enter}
+              disabled={!backendReady || loading}
+            >
+              {loading
+                ? "Setting things up…"
+                : !backendReady
+                  ? "⏳  Connecting to backend…"
+                  : "🚀  Get Started"}
+            </button>
 
-        {error && <p className="login-error">{error}</p>}
+            {error && <p className="login-error">{error}</p>}
 
-        <p className="login-footer">v0.1.9 · runs 100% locally</p>
+            <p className="login-footer">v0.1.9 · runs 100% locally</p>
+          </>
+        )}
+
+        {step === "setup-info" && (
+          <>
+            <h2 className="login-title" style={{ fontSize: 20 }}>
+              📧 Set Up Gmail Access
+            </h2>
+            <p className="login-subtitle">
+              To use Gmail features, you need a free Google credentials file.
+              Takes about 5 minutes — done once only.
+            </p>
+
+            <div style={{
+              width: "100%",
+              background: "rgba(0,0,0,0.25)",
+              borderRadius: 12,
+              padding: "14px 16px",
+              fontSize: 13,
+              color: "#94a3b8",
+              lineHeight: 1.8,
+              textAlign: "left",
+              maxHeight: 280,
+              overflowY: "auto",
+            }}>
+              <p style={{ margin: "0 0 6px", color: "#cbd5e1", fontWeight: 600 }}>
+                How to get credentials.json from Google:
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>1.</strong>{" "}
+                Go to{" "}
+                <span
+                  style={{ color: "#60a5fa", cursor: "pointer", textDecoration: "underline" }}
+                  onClick={() => window.electronAPI
+                    ? window.electronAPI.openExternal("https://console.cloud.google.com")
+                    : window.open("https://console.cloud.google.com", "_blank")
+                  }
+                >
+                  console.cloud.google.com ↗
+                </span>
+                {" "}and sign in.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>2.</strong>{" "}
+                Create a new project — name it{" "}
+                <strong style={{ color: "#e2e8f0" }}>Jarvis</strong>.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>3.</strong>{" "}
+                Go to <strong style={{ color: "#e2e8f0" }}>
+                APIs & Services → Library</strong>,
+                search <strong style={{ color: "#e2e8f0" }}>Gmail API</strong>,
+                click Enable.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>4.</strong>{" "}
+                Go to <strong style={{ color: "#e2e8f0" }}>
+                OAuth Consent Screen</strong> → Get Started →
+                fill in app name and email → click through all steps → Create.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>5.</strong>{" "}
+                Go to <strong style={{ color: "#e2e8f0" }}>Audience</strong> →
+                click <strong style={{ color: "#e2e8f0" }}>Publish App</strong> → confirm.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>6.</strong>{" "}
+                Go to <strong style={{ color: "#e2e8f0" }}>
+                Credentials → Create Credentials → OAuth Client ID</strong>.
+                Choose <strong style={{ color: "#e2e8f0" }}>Desktop app</strong> → Create.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>7.</strong>{" "}
+                Click the <strong style={{ color: "#e2e8f0" }}>⬇️ download icon</strong>{" "}
+                next to your new client → save the file as{" "}
+                <strong style={{ color: "#e2e8f0" }}>credentials.json</strong>.
+              </p>
+              <p style={{ margin: "8px 0 0", fontSize: 11, color: "#475569" }}>
+                🔒 Stored locally on your device only. Never uploaded to any server.
+              </p>
+            </div>
+
+            <button
+              className="login-button"
+              onClick={() => setStep("upload-creds")}
+            >
+              I have my credentials.json →
+            </button>
+            <button
+              style={{
+                background: "none", border: "none",
+                color: "#64748b", fontSize: 13, cursor: "pointer",
+              }}
+              onClick={finishSetup}
+            >
+              Skip — set up Gmail later in Settings
+            </button>
+          </>
+        )}
+
+        {step === "upload-creds" && (
+          <>
+            <h2 className="login-title" style={{ fontSize: 20 }}>
+              📄 Upload credentials.json
+            </h2>
+            <p className="login-subtitle">
+              Choose the credentials.json file you downloaded from Google Cloud.
+            </p>
+
+            <label style={{
+              width: "100%",
+              padding: "12px 16px",
+              background: "rgba(0,0,0,0.25)",
+              border: "1px dashed rgba(0,229,255,0.3)",
+              borderRadius: 12,
+              cursor: "pointer",
+              textAlign: "center",
+              color: credFile ? "#34d399" : "#64748b",
+              fontSize: 13,
+              boxSizing: "border-box",
+            }}>
+              <input
+                type="file"
+                accept=".json,application/json"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  setCredFile(e.target.files?.[0] || null);
+                  setUploadMsg("");
+                  setUploadDone(false);
+                }}
+              />
+              {credFile ? `📄 ${credFile.name}` : "Click to choose credentials.json"}
+            </label>
+
+            <button
+              className="login-button"
+              onClick={uploadCredentials}
+              disabled={uploading || !credFile}
+            >
+              {uploading ? "Uploading…" : "Upload"}
+            </button>
+
+            {uploadMsg && (
+              <p style={{
+                fontSize: 13, margin: 0, textAlign: "center",
+                color: uploadMsg.startsWith("✅") ? "#34d399" : "#f87171",
+              }}>
+                {uploadMsg}
+              </p>
+            )}
+
+            {uploadDone && (
+              <button
+                className="login-button"
+                onClick={() => setStep("connect-gmail")}
+              >
+                Continue → Sign in with Google
+              </button>
+            )}
+
+            <button
+              style={{
+                background: "none", border: "none",
+                color: "#64748b", fontSize: 13, cursor: "pointer",
+              }}
+              onClick={() => setStep("setup-info")}
+            >
+              ← Back
+            </button>
+          </>
+        )}
+
+        {step === "connect-gmail" && (
+          <>
+            <h2 className="login-title" style={{ fontSize: 20 }}>
+              🔗 Sign in with Google
+            </h2>
+            <p className="login-subtitle">
+              Click below — your browser will open Google sign-in.
+              Sign in with the Gmail account you want Jarvis to use.
+            </p>
+
+            <div style={{
+              width: "100%",
+              background: "rgba(0,0,0,0.25)",
+              borderRadius: 12,
+              padding: "12px 16px",
+              fontSize: 13,
+              color: "#94a3b8",
+              lineHeight: 1.7,
+              textAlign: "left",
+            }}>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>1.</strong>{" "}
+                Click <strong style={{ color: "#e2e8f0" }}>
+                Sign in with Google</strong> below.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>2.</strong>{" "}
+                Your browser opens — sign in with your Gmail.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>3.</strong>{" "}
+                If Google shows{" "}
+                <strong style={{ color: "#e2e8f0" }}>"This app isn't verified"</strong>
+                {" "}→ click <strong style={{ color: "#e2e8f0" }}>Advanced</strong>
+                {" "}→ <strong style={{ color: "#e2e8f0" }}>
+                Go to app (unsafe)</strong>.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>4.</strong>{" "}
+                Click <strong style={{ color: "#e2e8f0" }}>Allow</strong> on all screens.
+              </p>
+              <p style={{ margin: "0 0 4px" }}>
+                <strong style={{ color: "#00e5ff" }}>5.</strong>{" "}
+                Come back here — you will see a success message.
+              </p>
+            </div>
+
+            {!gmailConnected && (
+              <button
+                className="login-button"
+                onClick={connectGmail}
+                disabled={gmailConnecting}
+              >
+                {gmailConnecting ? "Opening browser…" : "🔗 Sign in with Google"}
+              </button>
+            )}
+
+            {gmailMsg && (
+              <p style={{
+                fontSize: 13, margin: 0, textAlign: "center",
+                color: gmailMsg.startsWith("✅") ? "#34d399" : "#f87171",
+              }}>
+                {gmailMsg}
+              </p>
+            )}
+
+            {gmailConnected && (
+              <button className="login-button" onClick={finishSetup}>
+                🚀 Launch Jarvis
+              </button>
+            )}
+
+            <button
+              style={{
+                background: "none", border: "none",
+                color: "#64748b", fontSize: 13, cursor: "pointer",
+              }}
+              onClick={gmailConnected ? finishSetup : () => setStep("upload-creds")}
+            >
+              {gmailConnected ? "Skip → go to Jarvis" : "← Back"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -297,13 +297,16 @@ def _parse_command_schema(user_text: str) -> Optional[Dict[str, Any]]:
 def _execute_single_action(action: str, params: Dict[str, Any], user_id: str, db: Session) -> Optional[str]:
     try:
         if action == "gmail_send":
-            agent = GmailAgent(user_id=user_id)
-            result = agent.send_email(
-                to=params.get("to", ""),
-                subject=params.get("subject", "Message from Jarvis"),
-                body=params.get("body", ""),
+            to = params.get("to", "")
+            subject = params.get("subject", "Message from Jarvis")
+            body = params.get("body", "")
+            return (
+                f"📧 Ready to send email — please confirm:\n"
+                f"To: {to}\n"
+                f"Subject: {subject}\n"
+                f"Body: {body}\n\n"
+                f"Say 'yes send it' to confirm or 'cancel' to discard."
             )
-            return f"{result}. To: {params.get('to')}. Subject: {params.get('subject')}."
 
         if action == "gmail_inbox":
             agent = GmailAgent(user_id=user_id)
@@ -480,6 +483,80 @@ async def chat_endpoint(
                 metadata={"user_id": request_user_id, "role": "assistant", "kind": "chat"}
             )
             return ChatResponse(response=time_reply)
+
+        # -------------------------
+        # Email confirmation flow
+        # -------------------------
+        lower_msg = latest_user_message.lower()
+
+        if any(phrase in lower_msg for phrase in ["yes send it", "send it", "confirm send"]):
+            recent = memory.get_recent_messages(user_id=request_user_id, limit=6)
+            pending_preview = None
+            for msg in reversed(recent):
+                content = msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
+                if "📧 Ready to send email" in content:
+                    pending_preview = content
+                    break
+            if pending_preview:
+                to_val = subject_val = body_val = ""
+                for line in pending_preview.splitlines():
+                    if line.startswith("To: "):
+                        to_val = line[len("To: "):].strip()
+                    elif line.startswith("Subject: "):
+                        subject_val = line[len("Subject: "):].strip()
+                    elif line.startswith("Body: "):
+                        body_val = line[len("Body: "):].strip()
+                try:
+                    agent = GmailAgent(user_id=request_user_id)
+                    agent.send_email(to=to_val, subject=subject_val, body=body_val)
+                    reply = f"✅ Email sent to {to_val}"
+                except Exception as exc:
+                    err = str(exc)
+                    if "not authenticated" in err.lower() or "not found" in err.lower() or "permissionerror" in err.lower():
+                        reply = (
+                            "❌ Gmail is not connected. "
+                            "Please go to Settings → Connect Gmail and sign in with Google first."
+                        )
+                    elif "credentials" in err.lower():
+                        reply = (
+                            "❌ Gmail credentials missing. "
+                            "Please upload credentials.json in Settings first."
+                        )
+                    else:
+                        reply = f"❌ Could not send email: {err}"
+                memory.save_message(request_user_id, "user", latest_user_message)
+                memory.save_message(request_user_id, "assistant", reply)
+                retriever.add_text(
+                    latest_user_message,
+                    metadata={"user_id": request_user_id, "role": "user", "kind": "chat"}
+                )
+                retriever.add_text(
+                    reply,
+                    metadata={"user_id": request_user_id, "role": "assistant", "kind": "chat"}
+                )
+                return ChatResponse(response=reply)
+
+        if lower_msg in ("cancel", "cancel email"):
+            recent = memory.get_recent_messages(user_id=request_user_id, limit=6)
+            has_pending = any(
+                "📧 Ready to send email" in (
+                    msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
+                )
+                for msg in recent
+            )
+            if has_pending:
+                reply = "📧 Email cancelled — nothing was sent."
+                memory.save_message(request_user_id, "user", latest_user_message)
+                memory.save_message(request_user_id, "assistant", reply)
+                retriever.add_text(
+                    latest_user_message,
+                    metadata={"user_id": request_user_id, "role": "user", "kind": "chat"}
+                )
+                retriever.add_text(
+                    reply,
+                    metadata={"user_id": request_user_id, "role": "assistant", "kind": "chat"}
+                )
+                return ChatResponse(response=reply)
 
         command = _parse_command_schema(latest_user_message)
         if command:

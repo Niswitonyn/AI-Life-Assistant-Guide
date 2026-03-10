@@ -1,6 +1,7 @@
 import os
 import base64
 from email.mime.text import MIMEText
+from pathlib import Path
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -34,31 +35,44 @@ class GmailAgent:
     # AUTHENTICATION
     # -------------------------
     def authenticate(self):
-
         creds = None
 
-        if self.token_path.exists():
-            creds = Credentials.from_authorized_user_file(
-                str(self.token_path), self.SCOPES
+        # Validate credentials file exists before attempting auth
+        if not Path(self.credentials_path).exists():
+            raise FileNotFoundError(
+                f"Google credentials file not found at: {self.credentials_path}\n"
+                f"Please go to Settings and upload your credentials.json file from Google Cloud Console."
             )
 
-        if not creds or not creds.valid:
-
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    str(self.credentials_path),
-                    self.SCOPES
+        if self.token_path.exists():
+            try:
+                creds = Credentials.from_authorized_user_file(
+                    str(self.token_path), self.SCOPES
                 )
-                creds = flow.run_local_server(port=0)
+            except Exception as e:
+                print(f"⚠️ Token file invalid, re-authenticating: {e}")
+                creds = None
+
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                try:
+                    creds.refresh(Request())
+                    with open(self.token_path, "w") as token:
+                        token.write(creds.to_json())
+                except Exception as e:
+                    print(f"⚠️ Token refresh failed: {e}")
+                    creds = None
+
+            if not creds or not creds.valid:
+                raise PermissionError(
+                    f"Gmail is not authenticated for user '{self.user_id}'.\n"
+                    f"Please go to Settings → Connect Gmail and complete Google sign-in first."
+                )
 
             with open(self.token_path, "w") as token:
                 token.write(creds.to_json())
 
         service = build("gmail", "v1", credentials=creds)
-
         return service
 
     # -------------------------
@@ -174,7 +188,7 @@ class GmailAgent:
 
         except Exception as e:
             print("❌ Send email error:", e)
-            return "Failed to send email"
+            raise RuntimeError(str(e))
 
     # -------------------------
     # START GMAIL PUSH WATCH

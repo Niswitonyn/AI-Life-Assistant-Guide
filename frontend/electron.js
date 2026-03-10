@@ -45,11 +45,27 @@ app.commandLine.appendSwitch("disable-features", "IsolateOrigins,site-per-proces
 
 function setClickThrough(enabled) {
   if (!win) return;
-  win.setIgnoreMouseEvents(enabled, { forward: true });
+  // Never ignore mouse events — the chat popup and menu need to be clickable.
+  // Click-through is handled by CSS pointer-events in the renderer instead.
+  if (enabled) {
+    win.setIgnoreMouseEvents(true, { forward: true });
+  } else {
+    win.setIgnoreMouseEvents(false);
+  }
 }
 
 ipcMain.on("set-click-through", (_, enabled) => {
+  // If chat is open, never enable click-through regardless of idle state.
+  // The renderer sends chatOpen state alongside the enabled flag.
   setClickThrough(enabled);
+});
+
+ipcMain.on("set-always-on-top", (event, value) => {
+  if (win) {
+    win.setAlwaysOnTop(value, value ? "screen-saver" : "normal");
+    if (!value) win.setVisibleOnAllWorkspaces(false);
+    else win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
 });
 
 function revealMainWindow() {
@@ -68,33 +84,10 @@ function loadRenderer(windowRef, hashPath = "/") {
 }
 
 function createChatWindow() {
-  if (chatWin) {
-    chatWin.focus();
-    return;
+  // Chat is now rendered inline inside the main window — no separate window needed.
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("toggle-chat");
   }
-
-  chatWin = new BrowserWindow({
-    width: 380,
-    height: 500,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    resizable: true,
-    webPreferences: {
-      // FIX: secure webPreferences - no Node.js access in renderer
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      preload: PRELOAD_PATH,
-    },
-  });
-
-  chatWin.setBackgroundColor("#00000000");
-  loadRenderer(chatWin, "/chat");
-
-  chatWin.on("closed", () => {
-    chatWin = null;
-  });
 }
 
 ipcMain.on("open-chat", () => {
@@ -382,6 +375,7 @@ function createWindow() {
     hasShadow: true,
     skipTaskbar: false,
     autoHideMenuBar: true,
+    alwaysOnTop: true,
     webPreferences: {
       // FIX: secure webPreferences - no Node.js access in renderer
       nodeIntegration: false,
@@ -394,6 +388,10 @@ function createWindow() {
   });
 
   win.setBackgroundColor("#00000000");
+  try {
+    win.setAlwaysOnTop(true, "screen-saver");
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  } catch { /* older Electron versions may not support these options */ }
   revealMainWindow();
 
   if (isDev) {

@@ -9,7 +9,8 @@
   color: #e5e7eb;
   font-family: 'Segoe UI', system-ui, sans-serif;
   overflow: hidden;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
+  pointer-events: all;
 }
 
 .chat-container {

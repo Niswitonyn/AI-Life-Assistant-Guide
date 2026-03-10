@@ -5,7 +5,9 @@ const { contextBridge, ipcRenderer, shell } = require("electron");
 contextBridge.exposeInMainWorld("electronAPI", {
   // Window controls
   setClickThrough: (enabled) => ipcRenderer.send("set-click-through", enabled),
+  setAlwaysOnTop: (value) => ipcRenderer.send("set-always-on-top", value),
   openChat: () => ipcRenderer.send("open-chat"),
+  onToggleChat: (callback) => ipcRenderer.on("toggle-chat", () => callback()),
   closeChat: () => ipcRenderer.send("close-chat"),
   openSettings: () => ipcRenderer.send("open-settings"),
   openMain: () => ipcRenderer.send("open-main"),

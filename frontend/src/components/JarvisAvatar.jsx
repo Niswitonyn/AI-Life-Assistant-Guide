@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import "./Jarvis.css";
 import { apiUrl } from "../config/api";
+import ChatPanel from "./ChatPanel";
 
 export default function JarvisAvatar() {
   const HOLD_TO_TALK_DELAY_MS = 180;
@@ -11,6 +12,7 @@ export default function JarvisAvatar() {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ horizontal: "right", vertical: "down" });
+  const [chatOpen, setChatOpen] = useState(false);
 
   const recognitionRef = useRef(null);
   const isHoldingRef = useRef(false);
@@ -77,20 +79,21 @@ export default function JarvisAvatar() {
   // ELECTRON CLICK‑THROUGH HOOK
   // =========================
   useEffect(() => {
-
     try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-
-        const clickThrough = state === "idle" && !hovered && !menuOpen;
-
-        ipcRenderer.send("set-click-through", clickThrough);
+      if (window.electronAPI?.setClickThrough) {
+        // Only enable click-through when truly idle:
+        // not hovering, no menu, no chat open, not listening/thinking/speaking
+        const clickThrough =
+          state === "idle" &&
+          !hovered &&
+          !menuOpen &&
+          !chatOpen;
+        window.electronAPI.setClickThrough(clickThrough);
       }
     } catch {
       // not electron
     }
-
-  }, [state, hovered, menuOpen]);
+  }, [state, hovered, menuOpen, chatOpen]);
 
   useEffect(() => {
     if (position.x !== null && position.y !== null) {
@@ -575,22 +578,14 @@ async function sendToBackend(message) {
   // OPEN CHAT WINDOW
   // =========================
   function openChat(e) {
-    // Require Shift + double click to avoid accidental popups.
     if (!e?.shiftKey) return;
-
-    try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-        ipcRenderer.send("open-chat");
-      }
-    } catch {}
+    setChatOpen(v => !v);
   }
 
   function openSettings() {
     try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-        ipcRenderer.send("open-settings");
+      if (window.electronAPI?.openSettings) {
+        window.electronAPI.openSettings();
       } else {
         window.location.hash = "/settings";
       }
@@ -602,25 +597,14 @@ async function sendToBackend(message) {
   }
 
   function openChatFromMenu() {
-    try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-        ipcRenderer.send("open-chat");
-      } else {
-        window.location.hash = "/chat";
-      }
-    } catch {
-      window.location.hash = "/chat";
-    } finally {
-      setMenuOpen(false);
-    }
+    setChatOpen(v => !v);
+    setMenuOpen(false);
   }
 
   function closeApp() {
     try {
-      if (window.require) {
-        const { ipcRenderer } = window.require("electron");
-        ipcRenderer.send("close-app");
+      if (window.electronAPI?.closeApp) {
+        window.electronAPI.closeApp();
         return;
       }
     } catch {}
@@ -676,6 +660,15 @@ async function sendToBackend(message) {
 
       <div className="jarvis-ring"></div>
       <div className="jarvis-core"></div>
+
+      {chatOpen && (
+        <div
+          className="jarvis-chat-popup"
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <ChatPanel onClose={() => setChatOpen(false)} />
+        </div>
+      )}
     </div>
   );
 }

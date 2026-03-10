@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./ChatPanel.css";
 import { apiUrl } from "../config/api";
 
-export default function ChatPanel() {
+export default function ChatPanel({ onClose }) {
 
   const [messages, setMessages] = useState([
     { role: "assistant", content: "Hello 👋 How can I help you?" }
@@ -80,7 +80,9 @@ export default function ChatPanel() {
   }
 
   function closeChat() {
-    if (window.electronAPI) {
+    if (onClose) {
+      onClose();
+    } else if (window.electronAPI) {
       window.electronAPI.closeChat();
     } else {
       window.close();
