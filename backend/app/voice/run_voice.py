@@ -1,11 +1,6 @@
 import requests
 
-from app.agents.browser_agent import BrowserAgent
-from app.agents.file_agent import FileAgent
-from app.automation.system_agent import SystemAgent
-from app.database.db import SessionLocal
-from app.memory.memory_service import MemoryService
-from app.router.command_router import CommandRouter
+from app.config.settings import settings
 from app.voice.speech_to_text import SpeechToText
 from app.voice.text_to_speech import TextToSpeech
 
@@ -14,26 +9,13 @@ class VoiceAssistant:
     def __init__(self):
         self.stt = SpeechToText()
         self.tts = TextToSpeech()
-        self.browser = BrowserAgent()
-        self.files = FileAgent()
-        self.system = SystemAgent()
-        self.db = SessionLocal()
-        self.memory = MemoryService(self.db)
-        self.router = CommandRouter(
-            system_agent=self.system,
-            browser_agent=self.browser,
-            file_agent=self.files,
-        )
 
     def ask_ai(self, text: str) -> str:
-        self.memory.save_message("default", "user", text)
-        history = self.memory.get_recent_messages(user_id="default", limit=10)
-
         payload = {
-            "provider": "ollama",
-            "model": "llama3",
+            "provider": settings.DEFAULT_PROVIDER,
+            "model": settings.DEFAULT_MODEL,
             "user_id": "default",
-            "messages": history,
+            "messages": [{"role": "user", "content": text}],
         }
 
         response = requests.post(
@@ -43,29 +25,19 @@ class VoiceAssistant:
         )
         response.raise_for_status()
 
-        reply = response.json().get("response", "Okay")
-        self.memory.save_message("default", "assistant", reply)
-        return reply
+        return response.json().get("response", "Okay")
 
     def run(self):
-        try:
-            while True:
-                text = self.stt.listen()
-                if not text:
-                    continue
+        while True:
+            text = self.stt.listen()
+            if not text:
+                continue
 
-                if "stop" in text.lower():
-                    break
+            if "stop" in text.lower():
+                break
 
-                result = self.router.route(text)
-                if result:
-                    self.tts.speak(str(result))
-                    continue
-
-                reply = self.ask_ai(text)
-                self.tts.speak(reply)
-        finally:
-            self.db.close()
+            reply = self.ask_ai(text)
+            self.tts.speak(reply)
 
 
 if __name__ == "__main__":

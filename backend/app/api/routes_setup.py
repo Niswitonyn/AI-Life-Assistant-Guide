@@ -48,7 +48,10 @@ def setup_status():
         CREDENTIALS_FILE.exists() or
         (
             TOKENS_DIR.exists() and
-            any(name.endswith("_gmail_token.json") for name in os.listdir(TOKENS_DIR))
+            any(
+                name.endswith("_gmail_token.enc") or name.endswith("_gmail_token.json")
+                for name in os.listdir(TOKENS_DIR)
+            )
         )
     )
     user_ready = USER_CONFIG_PATH.exists()
@@ -108,9 +111,9 @@ def gmail_status():
     token_users = []
     if TOKENS_DIR.exists():
         token_users = [
-            name.replace("_gmail_token.json", "")
+            name.replace("_gmail_token.enc", "").replace("_gmail_token.json", "")
             for name in os.listdir(TOKENS_DIR)
-            if name.endswith("_gmail_token.json")
+            if name.endswith("_gmail_token.enc") or name.endswith("_gmail_token.json")
         ]
 
     if not CREDENTIALS_FILE.exists():

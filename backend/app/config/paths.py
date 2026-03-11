@@ -14,7 +14,16 @@ def resolve_data_dir() -> Path:
 
 DATA_DIR = resolve_data_dir()
 DB_DIR = DATA_DIR / "database"
-LOG_DIR = DATA_DIR / "logs"
+
+
+def resolve_log_dir() -> Path:
+    override = os.getenv("AI_LIFE_LOG_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return DATA_DIR / "logs"
+
+
+LOG_DIR = resolve_log_dir()
 KEYS_DIR_PATH = DATA_DIR / "keys"
 TOKENS_DIR = DATA_DIR / "tokens"
 CREDENTIALS_DIR = DATA_DIR / "credentials"
@@ -24,4 +33,3 @@ AI_CONFIG_PATH = DATA_DIR / "ai_config.json"
 USER_CONFIG_PATH = DATA_DIR / "user.json"
 CONTACTS_FILE = DATA_DIR / "contacts.json"
 RAG_STORE_FILE = DATA_DIR / "rag_store.json"
-

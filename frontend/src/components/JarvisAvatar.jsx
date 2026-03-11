@@ -272,7 +272,7 @@ export default function JarvisAvatar() {
 
       setState("thinking");
 
-      await sendToBackend(text);
+      await sendVoiceTextToBackend(text);
     };
 
     recognition.onerror = (e) => {
@@ -359,14 +359,17 @@ export default function JarvisAvatar() {
 
       const formData = new FormData();
       formData.append("audio", audioBlob, "recording.webm");
+      formData.append("user_id", localStorage.getItem("user_id") || "default");
 
-      const res = await fetch(
-        apiUrl("/api/voice"),
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const token = localStorage.getItem("token");
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(apiUrl("/api/voice/input"), {
+        method: "POST",
+        headers,
+        body: formData,
+      });
 
       if (!res.ok) {
         setState("idle");
@@ -375,13 +378,11 @@ export default function JarvisAvatar() {
 
       const data = await res.json();
 
-      const text = (data.text || "").trim();
+      const reply = (data.response_text || "").trim();
 
-      if (text.length > 1) {
+      if (reply.length > 1) {
 
-        setState("thinking");
-
-        await sendToBackend(text);
+        speak(reply);
 
       } else {
 
@@ -541,6 +542,47 @@ async function sendToBackend(message) {
       console.error(err);
       setState("idle");
 
+    }
+  }
+
+
+  // =========================
+  // VOICE BACKEND (TEXT)
+  // =========================
+  async function sendVoiceTextToBackend(message) {
+    const cleaned = (message || "").trim();
+    if (!cleaned) {
+      setState("idle");
+      return;
+    }
+
+    const userId = localStorage.getItem("user_id") || "default";
+    const token = localStorage.getItem("token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(apiUrl("/api/voice/input"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          user_id: userId,
+          text: cleaned,
+        }),
+      });
+
+      if (!res.ok) {
+        // Fallback to chat endpoint if voice endpoint isn't available.
+        await sendToBackend(cleaned);
+        return;
+      }
+
+      const data = await res.json();
+      const reply = (data.response_text || "").trim();
+      speak(reply || "Okay");
+    } catch (err) {
+      console.error(err);
+      await sendToBackend(cleaned);
     }
   }
 

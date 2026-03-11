@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import List, Dict
 
-from app.database.models import ConversationMemory
+from app.memory.memory_manager import MemoryManager
 
 
 class MemoryService:
@@ -16,29 +16,17 @@ class MemoryService:
     # Save message
     # -------------------------
     def save_message(self, user_id: str, role: str, content: str):
-        msg = ConversationMemory(
-            user_id=user_id,
-            role=role,
-            content=content
+        MemoryManager(self.db, user_id=user_id).save_conversation(role=role, message=content)
+
+    def store_message(self, user_id: str, user_message: str, assistant_response: str, session_id: str = "default") -> int:
+        return MemoryManager(self.db, user_id=user_id).store_interaction(
+            user_message=user_message,
+            assistant_response=assistant_response,
+            session_id=session_id,
         )
-        self.db.add(msg)
-        self.db.commit()
 
     # -------------------------
     # Get recent messages
     # -------------------------
     def get_recent_messages(self, user_id: str, limit: int = 10) -> List[Dict]:
-        messages = (
-            self.db.query(ConversationMemory)
-            .filter(ConversationMemory.user_id == user_id)
-            .order_by(ConversationMemory.id.desc())
-            .limit(limit)
-            .all()
-        )
-
-        messages = list(reversed(messages))
-
-        return [
-            {"role": m.role, "content": m.content}
-            for m in messages
-        ]
+        return MemoryManager(self.db, user_id=user_id).get_recent_conversation(limit=limit)

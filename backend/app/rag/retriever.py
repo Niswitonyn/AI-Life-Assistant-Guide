@@ -1,6 +1,8 @@
+import json
 import math
 from typing import Dict, List, Optional
 
+from app.core.ttl_cache import TTLCache
 from app.rag.embeddings import embedder
 from app.rag.vector_store import vector_store
 
@@ -44,7 +46,14 @@ class Retriever:
         return True
 
     def search(self, query: str, top_k: int = 5, filters: Optional[Dict] = None) -> List[Dict]:
-        query_embedding = embedder.embed(query)
+        cleaned_query = (query or "").strip()
+        # Small TTL cache for repeated queries (e.g., UI retries / follow-ups).
+        cache_key = f"{cleaned_query.lower()[:400]}|k={int(top_k)}|f={hash(json.dumps(filters or {}, sort_keys=True, ensure_ascii=False))}"
+        cached = _search_cache.get(cache_key)
+        if cached is not None:
+            return list(cached)
+
+        query_embedding = embedder.embed(cleaned_query)
         docs = vector_store.all_documents()
         filter_user_id = (filters or {}).get("user_id")
 
@@ -69,7 +78,21 @@ class Retriever:
                 )
 
         scored.sort(key=lambda x: x["score"], reverse=True)
-        return scored[: max(1, top_k)]
+        out = scored[: max(1, top_k)]
+        try:
+            _search_cache.set(cache_key, list(out), ttl_s=25.0)
+        except Exception:
+            pass
+        return out
+
+    def retrieve_relevant_chunks(self, query: str, *, top_k: int = 5, user_id: str | None = None, document_name: str | None = None) -> List[Dict]:
+        filters: Dict[str, object] = {"kind": "document_chunk"}
+        if user_id:
+            filters["user_id"] = user_id
+        if document_name:
+            filters["document_name"] = document_name
+        return self.search(query=query, top_k=top_k, filters=filters)
 
 
+_search_cache: TTLCache[str, List[Dict]] = TTLCache(ttl_s=25.0, max_items=512)
 retriever = Retriever()

@@ -1,11 +1,9 @@
-import os
 from datetime import datetime
 from typing import List, Dict
 
-from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from app.config.paths import TOKENS_DIR
+from app.services.google_token_store import load_gmail_credentials, save_gmail_credentials
 
 
 class CalendarAgent:
@@ -14,23 +12,15 @@ class CalendarAgent:
     def __init__(self, user_id: str = "default"):
         self.user_id = user_id
 
-        self.token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
-
-        if not os.path.exists(self.token_path):
-            raise RuntimeError("No Gmail token found. Please connect Gmail first.")
-
         self.service = self.authenticate()
 
     def authenticate(self):
-        creds = Credentials.from_authorized_user_file(
-            str(self.token_path)
-        )
+        creds = load_gmail_credentials(self.user_id, scopes=self.SCOPES)
 
         if not creds.valid:
             if creds.expired and creds.refresh_token:
                 creds.refresh(Request())
-                with open(self.token_path, "w", encoding="utf-8") as token:
-                    token.write(creds.to_json())
+                save_gmail_credentials(self.user_id, creds)
             else:
                 raise RuntimeError("Token is invalid and cannot be refreshed.")
 

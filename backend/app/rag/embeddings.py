@@ -37,3 +37,12 @@ class LocalHashEmbedder:
 
 
 embedder = LocalHashEmbedder()
+
+
+def generate_embedding(text: str) -> List[float]:
+    """
+    Public embedding function used by the document RAG pipeline.
+
+    This project defaults to a local hash embedder to avoid external dependencies.
+    """
+    return embedder.embed(text)

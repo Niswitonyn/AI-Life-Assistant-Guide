@@ -1,32 +1,76 @@
-import os
-from pathlib import Path
+import asyncio
+from typing import Any, Dict
+
+from app.agents.base_agent import BaseAgent
+from app.core.system_logs import log_system_event
+from app.services.file_system_service import FileSystemError, FileSystemService
 
 
-class FileAgent:
+class FileAgent(BaseAgent):
+    name = "file_agent"
+    description = "Safe file system agent (find/open/create/delete/list) within allowed directories."
 
-    def find_file(self, name):
+    def __init__(self):
+        self.fs = FileSystemService()
 
-        home = Path.home()
+    async def execute(self, task: dict):
+        task = task or {}
+        action = (task.get("action") or "").strip()
+        params = task.get("params") or {}
+        task_text = task.get("text", "")
 
-        for root, dirs, files in os.walk(home):
-            for f in files:
-                if name.lower() in f.lower():
-                    return os.path.join(root, f)
+        try:
+            if action in {"find_file", "file_find"}:
+                name = (params.get("name") or params.get("filename") or "").strip()
+                res = await asyncio.to_thread(self.fs.search_file, name, max_results=int(params.get("max_results", 10)))
+                log_system_event("find_file", {"name": name, "ok": res.ok})
+                return self._wrap(res, task_text, "find_file")
 
-        return None
+            if action == "open_file":
+                value = (params.get("path") or params.get("name") or params.get("filename") or "").strip()
+                res = await asyncio.to_thread(self.fs.open_file, value)
+                log_system_event("open_file", {"value": value, "ok": res.ok})
+                return self._wrap(res, task_text, "open_file")
 
-    def create_folder(self, folder_name: str, base: str = "documents"):
-        folder_name = (folder_name or "").strip().strip("\"'")
-        if not folder_name:
-            return None
+            if action in {"create_folder", "folder_create"}:
+                name = (params.get("name") or params.get("folder_name") or "").strip()
+                loc = (params.get("location") or params.get("base") or "documents").strip()
+                res = await asyncio.to_thread(self.fs.create_folder, name, loc)
+                log_system_event("create_folder", {"name": name, "location": loc, "ok": res.ok})
+                return self._wrap(res, task_text, "create_folder")
 
-        base_map = {
-            "documents": Path.home() / "Documents",
-            "downloads": Path.home() / "Downloads",
-            "desktop": Path.home() / "Desktop",
-            "pictures": Path.home() / "Pictures",
+            if action == "delete_file":
+                value = (params.get("path") or params.get("name") or params.get("filename") or "").strip()
+                res = await asyncio.to_thread(self.fs.delete_file, value)
+                log_system_event("delete_file", {"value": value, "ok": res.ok})
+                return self._wrap(res, task_text, "delete_file")
+
+            if action in {"list_files", "list_directory"}:
+                path = (params.get("path") or params.get("location") or "").strip()
+                res = await asyncio.to_thread(self.fs.list_directory, path, limit=int(params.get("limit", 50)))
+                log_system_event("list_files", {"path": path, "ok": res.ok})
+                return self._wrap(res, task_text, "list_files")
+
+            return self._err(task_text, action, f"Unsupported action: {action}")
+        except FileSystemError as e:
+            log_system_event(action or "file_error", {"task": task_text}, error=str(e))
+            return self._err(task_text, action, str(e))
+        except Exception as e:
+            log_system_event(action or "file_error", {"task": task_text}, error=str(e))
+            return self._err(task_text, action, str(e) or "File action failed")
+
+    def _wrap(self, res, task_text: str, action: str):
+        data = res.data if isinstance(res.data, dict) else {}
+        data.setdefault("message", res.message)
+        return {
+            "status": "success" if res.ok else "error",
+            "agent": self.name,
+            "action": action,
+            "task": task_text,
+            "data": data if res.ok else data,
+            "result": data if res.ok else None,
+            "error": None if res.ok else res.message,
         }
-        parent = base_map.get(base.lower(), Path.home() / "Documents")
-        target = parent / folder_name
-        target.mkdir(parents=True, exist_ok=True)
-        return str(target)
+
+    def _err(self, task_text: str, action: str, error: str):
+        return {"status": "error", "agent": self.name, "action": action, "task": task_text, "data": None, "result": None, "error": error}

@@ -8,6 +8,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from app.config.paths import TOKENS_DIR, CREDENTIALS_FILE
+from app.services.google_token_store import load_gmail_credentials, save_gmail_credentials
 from app.core.auth import create_token
 from app.database.db import SessionLocal
 from app.database.models import User
@@ -57,11 +58,7 @@ def _upsert_google_user(email: str | None, name: str | None) -> User | None:
 
 
 def _ensure_token_file(user_id: str, creds: Credentials) -> str:
-    TOKENS_DIR.mkdir(parents=True, exist_ok=True)
-    token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
-    with open(token_path, "w", encoding="utf-8") as f:
-        f.write(creds.to_json())
-    return str(token_path)
+    return save_gmail_credentials(user_id, creds)
 
 
 @router.get("/gmail/login")
@@ -106,11 +103,8 @@ async def gmail_login(user_id: str = "default"):
             logger.info(f"Got profile: {email}")
 
             # FIX: save to TOKENS_DIR — same path gmail_agent.py reads from
-            TOKENS_DIR.mkdir(parents=True, exist_ok=True)
-            token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
-            token_path.write_text(creds.to_json())
-
-            logger.info(f"Token saved to {token_path}")
+            _ensure_token_file(user_id, creds)
+            logger.info("Token saved (encrypted) for user_id=%s", user_id)
             return {"email": email, "name": name}
         except Exception as e:
             logger.error(f"OAuth error: {e}")
@@ -141,16 +135,14 @@ async def connect_gmail(user_id: str = "default"):
 
 @router.get("/gmail/profile")
 def gmail_profile(user_id: str = "default"):
-    token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
-    if not token_path.exists():
+    try:
+        creds = load_gmail_credentials(user_id, scopes=SCOPES)
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Gmail token not found")
-
-    creds = Credentials.from_authorized_user_file(str(token_path))
     if not creds.valid:
         if creds.expired and creds.refresh_token:
             creds.refresh(GoogleRequest())
-            with open(token_path, "w", encoding="utf-8") as token_file:
-                token_file.write(creds.to_json())
+            _ensure_token_file(user_id, creds)
         else:
             raise HTTPException(status_code=401, detail="Token invalid or expired")
 
@@ -176,16 +168,14 @@ def gmail_profile(user_id: str = "default"):
 
 @router.post("/gmail/refresh")
 def gmail_refresh_token(user_id: str = "default"):
-    token_path = TOKENS_DIR / f"{user_id}_gmail_token.json"
-    if not token_path.exists():
+    try:
+        creds = load_gmail_credentials(user_id, scopes=SCOPES)
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Gmail token not found")
-
-    creds = Credentials.from_authorized_user_file(str(token_path))
     if not creds.refresh_token:
         raise HTTPException(status_code=400, detail="No refresh token available")
 
     creds.refresh(GoogleRequest())
-    with open(token_path, "w", encoding="utf-8") as token_file:
-        token_file.write(creds.to_json())
+    _ensure_token_file(user_id, creds)
 
     return {"status": "ok", "message": "Token refreshed"}

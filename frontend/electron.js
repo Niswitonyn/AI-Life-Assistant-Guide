@@ -266,7 +266,11 @@ function startBundledBackend() {
   if (isDev || backendProcess) return;
 
   const candidatePaths = [
+    // New onedir backend layout (preferred)
+    path.join(process.resourcesPath, 'backend', 'backend.exe'),
+    // Legacy single-exe layout (older builds)
     path.join(process.resourcesPath, 'backend', 'jarvis-backend.exe'),
+    path.join(process.resourcesPath, 'backend', 'jarvis-backend-single.exe'),
     path.join(path.dirname(process.execPath), 'resources', 'backend', 'jarvis-backend.exe'),
     path.join(app.getPath('exe'), '..', 'resources', 'backend', 'jarvis-backend.exe'),
     path.join(app.getAppPath(), '..', 'backend', 'jarvis-backend.exe'),
@@ -280,10 +284,25 @@ function startBundledBackend() {
     return;
   }
 
-  const backendDataDir = path.join(app.getPath("userData"), "backend-data");
+  const portableRoot = process.env.PORTABLE_EXECUTABLE_DIR
+    ? path.resolve(process.env.PORTABLE_EXECUTABLE_DIR)
+    : null;
+
+  const backendDataDir = portableRoot
+    ? path.join(portableRoot, "data")
+    : path.join(app.getPath("userData"), "backend-data");
+
+  const backendLogDir = portableRoot
+    ? path.join(portableRoot, "logs")
+    : path.join(app.getPath("userData"), "logs");
+
+  const backendDownloadsDir = portableRoot
+    ? path.join(portableRoot, "downloads")
+    : path.join(app.getPath("downloads"), "Jarvis Assistant");
+
   fs.mkdirSync(backendDataDir, { recursive: true });
-  const backendLogDir = path.join(app.getPath("userData"), "logs");
   fs.mkdirSync(backendLogDir, { recursive: true });
+  fs.mkdirSync(backendDownloadsDir, { recursive: true });
   const backendOutLog = path.join(backendLogDir, "backend-stdout.log");
   const backendErrLog = path.join(backendLogDir, "backend-stderr.log");
 
@@ -307,6 +326,8 @@ function startBundledBackend() {
     env: {
       ...process.env,
       AI_LIFE_DATA_DIR: backendDataDir,
+      AI_LIFE_LOG_DIR: backendLogDir,
+      AI_LIFE_DOWNLOAD_DIR: backendDownloadsDir,
       DEBUG: "false",
     },
     windowsHide: true,

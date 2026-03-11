@@ -24,7 +24,7 @@ def gmail_send(request: SendEmailRequest):
             subject=request.subject,
             body=request.body,
         )
-        return {"status": "ok", "message": result}
+        return {"status": "ok", "message": "sent", "data": result}
     except (FileNotFoundError, PermissionError) as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -35,7 +35,7 @@ def gmail_send(request: SendEmailRequest):
 def gmail_inbox(user_id: str = "default", limit: int = 5):
     try:
         agent = GmailAgent(user_id=user_id)
-        emails = agent.get_latest_emails(max_results=max(1, min(limit, 20)))
+        emails = agent.read_inbox(limit=max(1, min(limit, 20)))
         return {"status": "ok", "count": len(emails), "emails": emails}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

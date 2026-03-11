@@ -33,6 +33,24 @@ class LocalVectorStore:
             self._data = {"documents": []}
             self._flush()
 
+    def reload(self) -> None:
+        """
+        Reload store from disk (best-effort).
+        """
+        with self._lock:
+            self._load()
+
+    def health(self) -> Dict:
+        """
+        Basic health signal for monitoring.
+        """
+        try:
+            with self._lock:
+                count = len(self._data.get("documents", []) or [])
+            return {"ok": True, "count": count, "path": self.store_path}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc), "path": self.store_path}
+
     def _flush(self):
         directory = os.path.dirname(self.store_path)
         os.makedirs(directory, exist_ok=True)
@@ -66,6 +84,23 @@ class LocalVectorStore:
             )
             self._flush()
             return doc_id
+
+    def find_documents(self, filters: Optional[Dict] = None, *, limit: int = 1000) -> List[Dict]:
+        filters = dict(filters or {})
+        with self._lock:
+            out: List[Dict] = []
+            for doc in self._data.get("documents", []):
+                meta = doc.get("metadata", {}) or {}
+                ok = True
+                for k, v in filters.items():
+                    if meta.get(k) != v:
+                        ok = False
+                        break
+                if ok:
+                    out.append(doc)
+                    if len(out) >= max(1, int(limit)):
+                        break
+            return out
 
     def all_documents(self) -> List[Dict]:
         with self._lock:

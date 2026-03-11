@@ -12,7 +12,7 @@ Build command:
     pyinstaller jarvis-backend.spec
 
 The resulting executable will be in:
-    dist/jarvis-backend-single.exe
+    dist/backend/backend.exe
 """
 
 from pathlib import Path
@@ -63,6 +63,7 @@ hiddenimports = [
     'speech_recognition',
     'faster_whisper',
     'pyttsx3',
+    'PyPDF2',
 ]
 
 hiddenimports += collect_submodules('app')
@@ -84,7 +85,7 @@ datas = [d for d in datas if d is not None]
 # ============================================================================
 
 a = Analysis(
-    ['run_packaged_backend.py'],
+    ['start_backend.py'],
     pathex=[str(backend_dir)],
     binaries=[],
     datas=datas,
@@ -114,7 +115,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='jarvis-backend-single',
+    name='backend',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -129,13 +130,13 @@ exe = EXE(
     entitlements_file=None,
 )
 
-# Uncomment below for multi-file distribution (folder instead of single .exe)
-# coll = COLLECT(
-#     exe,
-#     a.binaries,
-#     a.datas,
-#     strip=False,
-#     upx=True,
-#     upx_exclude=[],
-#     name='jarvis-backend',
-# )
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='backend',
+)

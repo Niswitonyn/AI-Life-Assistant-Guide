@@ -1,12 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from starlette.responses import JSONResponse
 
 import uvicorn
 import threading
 import base64
 import json
 import logging
+import time
 from app.config.paths import USERS_FILE
 
 # ROUTERS
@@ -18,18 +20,29 @@ from app.api.routes_setup import router as setup_router
 # CORE
 from app.database.init_db import init_db
 from app.scheduler.reminder_scheduler import ReminderScheduler
+from app.memory.memory_cleanup import MemoryCleanupScheduler
 
 # SERVICES
 from app.agents.gmail_agent import GmailAgent
 from app.notifications.email_notifier import EmailNotifier
 from app.voice.voice_assistant import VoiceAssistant
+from app.services.email_monitor import create_email_monitor
 
 from app.api.routes_auth import router as auth_router
 from app.api.routes_user import router as user_router
 
 from app.api.voice import router as voice_router
+from app.api.routes_voice import router as voice_input_router
 from app.api.routes_rag import router as rag_router
 from app.api.routes_gsuite import router as gsuite_router
+from app.api.routes_events import router as events_router
+from app.api.routes_memory import router as memory_router
+from app.security.rate_limiter import rate_limiter
+from app.security.security_logs import log_security_event
+from app.api.routes_documents import router as documents_router
+from app.api.routes_learning import router as learning_router
+from app.api.routes_system import router as system_router
+from app.monitoring.performance_metrics import performance_metrics
 
 # -------------------------
 # GLOBAL SERVICES
@@ -49,6 +62,7 @@ notifier = EmailNotifier(
     voice_assistant=voice_assistant if voice_assistant else None,
     ai_url="http://127.0.0.1:8000/api/ai/chat"
 )
+email_monitor = create_email_monitor(notifier)
 
 
 # -------------------------
@@ -66,9 +80,33 @@ async def lifespan(app: FastAPI):
     scheduler = ReminderScheduler()
     threading.Thread(target=scheduler.start, daemon=True).start()
 
+    memory_scheduler = MemoryCleanupScheduler()
+    threading.Thread(target=memory_scheduler.start, daemon=True).start()
+
+    # Start inbox monitoring (poll tracked senders)
+    try:
+        email_monitor.start()
+    except Exception as exc:
+        logger.warning(f"Email monitor start failed (non-critical): {exc}")
+
+    # Start system health monitor
+    try:
+        from app.monitoring.health_monitor import health_monitor
+
+        await health_monitor.start()
+    except Exception as exc:
+        logger.warning(f"Health monitor start failed (non-critical): {exc}")
+
     yield
 
     print("AI Life Assistant Backend Shutting Down...")
+
+    try:
+        from app.monitoring.health_monitor import health_monitor
+
+        await health_monitor.stop()
+    except Exception:
+        pass
 
 
 # -------------------------
@@ -97,6 +135,50 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# -------------------------
+# BASIC RATE LIMITING (in-memory)
+# -------------------------
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    path = request.url.path or ""
+    ip = (request.client.host if request.client else "") or "unknown"
+
+    # Conservative defaults; adjust via env by editing this mapping.
+    rules = [
+        ("/api/ai/chat", 60, 60.0),
+        ("/api/voice/input", 30, 60.0),
+        ("/voice/input", 30, 60.0),
+        ("/api/documents/upload", 10, 60.0),
+        ("/documents/upload", 10, 60.0),
+    ]
+
+    for prefix, limit, window_s in rules:
+        if path.startswith(prefix):
+            ok = rate_limiter.allow(ip, prefix, limit=limit, window_s=window_s)
+            if not ok:
+                log_security_event("rate_limited", {"ip": ip, "path": path, "limit": limit, "window_s": window_s})
+                return JSONResponse({"detail": "Too many requests. Please slow down."}, status_code=429)
+            break
+
+    return await call_next(request)
+
+
+# -------------------------
+# PERFORMANCE METRICS
+# -------------------------
+@app.middleware("http")
+async def perf_metrics_middleware(request: Request, call_next):
+    started = time.perf_counter()
+    try:
+        return await call_next(request)
+    finally:
+        try:
+            dt = max(0.0, time.perf_counter() - started)
+            performance_metrics.observe_api(request.url.path or "/", dt)
+        except Exception:
+            pass
 
 
 # -------------------------
@@ -229,8 +311,17 @@ app.include_router(tasks_router, prefix="/api/tasks", tags=["Tasks"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(user_router, prefix="/api/user", tags=["User"])
 app.include_router(voice_router, prefix="/api")
+app.include_router(voice_input_router, prefix="/api", tags=["Voice"])
+app.include_router(voice_input_router, tags=["Voice"])
 app.include_router(rag_router, prefix="/api/rag", tags=["RAG"])
 app.include_router(gsuite_router, prefix="/api/gsuite", tags=["Google"])
+app.include_router(events_router, prefix="/api/events", tags=["Events"])
+app.include_router(memory_router, prefix="/memory", tags=["Memory"])
+app.include_router(documents_router, prefix="/documents", tags=["Documents"])
+app.include_router(documents_router, prefix="/api/documents", tags=["Documents"])
+app.include_router(learning_router, prefix="/api/learning", tags=["Learning"])
+app.include_router(system_router, tags=["System"])
+app.include_router(system_router, prefix="/api", tags=["System"])
 
 
 # -------------------------

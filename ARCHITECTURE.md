@@ -102,11 +102,11 @@
 | Module | Purpose | Key Files |
 |--------|---------|-----------|
 | **api/** | FastAPI route handlers | `routes_ai.py`, `routes_auth.py`, `routes_tasks.py`, `voice.py` |
-| **agents/** | External service integrations | `gmail_agent.py`, `calendar_agent.py`, `chrome_agent.py`, `file_agent.py` |
+| **agents/** | Agent implementations (standard interface) | `base_agent.py`, `browser_agent.py`, `gmail_agent.py`, `calendar_agent.py`, `file_agent.py`, `system_agent.py` |
 | **core/** | Authentication & authorization | `auth.py` (`get_optional_current_user`) |
 | **database/** | ORM models & initialization | `models.py` (User, Task, ConversationMemory), `db.py`, `init_db.py` |
-| **router/** | Command routing & intent detection | `smart_router.py`, `command_router.py` |
-| **automation/** | High-level task automation | `system_agent.py`, `task_agent.py` |
+| **router/** | Command routing & intent detection | `smart_router.py` (primary), `command_router.py` (legacy) |
+| **automation/** | Legacy automation helpers | `task_agent.py`, `system_agent.py` (legacy) |
 | **ai/** | LLM provider abstraction | `provider_factory.py`, base providers (ollama, openai, gemini) |
 | **memory/** | Conversation & user memory | `memory_service.py`, `memory_manager.py`, `personalization.py` |
 | **rag/** | Vector search & retrieval | `retriever.py` (semantic search over past conversations) |
@@ -179,28 +179,35 @@ If no match: ask_ai(text) → HTTP calls /api/ai/chat
 voice_assistant.speak(reply) → pyttsx3 TTS
 ```
 
-**ISSUE**: Voice has its own routing logic (SmartRouter + CommandRouter) instead of using the unified command schema from `/api/ai/chat`.
+**NOTE**: Voice and chat now share the same execution path via the BrainController (`POST /api/ai/chat`).
 
-### **4.3 Unified Approach (To Implement)**
+### **4.3 Unified Approach (Implemented)**
 
-Both voice and chat should:
+Both voice and chat:
 1. Receive text input (transcribed or user-typed)
-2. Call the unified command executor from `routes_ai.py`
-3. Use same schema: `_parse_command_schema()` → `_execute_command_schema()`
-4. Fallback to LLM the same way
-5. Return result (to UI or TTS)
+2. Call `POST /api/ai/chat` (backend BrainController)
+3. BrainController runs: SmartRouter → TaskPlanner → Agent Execution → Memory/RAG updates
+4. If no command is detected, BrainController falls back to the LLM chat flow
+5. Returns `{"response": "<text>"}` to UI / voice TTS (frontend contract unchanged)
 
 ---
 
 ## **5. KEY EXECUTION HANDLERS**
 
-### **Command Parser** (`routes_ai.py`)
-- `_parse_command_schema(user_text)` → Detects and converts natural language to structured commands
-- **Supported commands**: email, calendar, browser, files, system, tasks
+### **Brain Controller** (`backend/app/core/brain_controller.py`)
+- Unified entrypoint for chat + voice
+- Runs: SmartRouter → TaskPlanner → Agent Execution → Memory/RAG updates
+- Produces structured JSON task results internally while returning display text via the existing HTTP response contract
 
-### **Command Executor** (`routes_ai.py`)
-- `_execute_single_action(action, params, user_id, db)` → Executes each action
-- Integrates with agents (Gmail, Calendar, Chrome, File, System, Task)
+### **Smart Router** (`backend/app/router/smart_router.py`)
+- Intent classification + agent mapping + command-to-action parsing
+- Multi-command parsing via `TaskPlanner`
+
+### **Task Planner** (`backend/app/core/task_planner.py`)
+- Splits compound commands into ordered task clauses
+
+### **Agent Interface** (`backend/app/agents/base_agent.py`)
+- Standard async `execute(task: dict)` interface for agents
 
 ### **LLM Provider** (`ai/provider_factory.py`)
 - Abstracts Ollama, OpenAI, Gemini
@@ -287,16 +294,14 @@ Both voice and chat should:
 ## **10. KNOWN ISSUES & IMPROVEMENTS**
 
 ### **Current Issues**
-1. **Voice command routing is decoupled**: Voice uses SmartRouter/CommandRouter instead of unified schema
-2. **Voice hardcodes Ollama/llama3**: In `smart_router.py`, requests hardcoded to ollama provider
-3. **No error boundaries**: Missing graceful fallbacks for agent failures
-4. **Memory not persisted**: In-memory routing logic, some state not saved
+1. **Some agent actions are synchronous**: long-running tasks can block the request thread
+2. **Image search endpoints can be rate-limited**: consider adding retries/backoff or a provider-backed approach
+3. **Limited test coverage**: task splitting and routing are not yet unit tested
 
 ### **Recommendations**
-1. **Unify routing**: Make voice use the same `_parse_command_schema()` + `_execute_command_schema()` from routes_ai.py
-2. **Parameterize providers**: Allow voice to select provider from settings
-3. **Add retry logic**: Implement exponential backoff for agent calls
-4. **Add tests**: Unit tests for command parsing and execution
+1. **Add tests**: unit tests for `TaskPlanner.split()` and `SmartRouter.route()`
+2. **Async IO**: make network-heavy agent calls fully async (or move to background jobs)
+3. **Observability**: add structured logging around task execution and failures
 
 ---
 
@@ -322,12 +327,11 @@ The `.exe` can run independently on Windows without Python/Node installed.
 
 ---
 
-## **STATUS: READY FOR IMPLEMENTATION**
+## **STATUS: IMPLEMENTED (BrainController Unification)**
 
 This architecture supports:
 - ✅ Multi-user isolation
 - ✅ Command execution (system, email, calendar, browser, files)
 - ✅ AI fallback with context (RAG + memory + personalization)
-- ✅ Voice & chat interfaces (to be unified)
+- ✅ Voice & chat interfaces (unified via BrainController)
 - ✅ Standalone Windows executable
-- ⚠️ Voice routing (needs unification)

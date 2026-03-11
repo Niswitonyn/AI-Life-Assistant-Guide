@@ -1,128 +1,43 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from faster_whisper import WhisperModel
-import asyncio
-import tempfile
+from __future__ import annotations
+
 import os
-import logging
-import time
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+
+from app.core.voice_logs import log_voice_event
+from app.voice.speech_to_text import SpeechToTextError, transcribe_audio_bytes_async
 
 router = APIRouter()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-TRANSCRIBE_TIMEOUT_SECONDS = int(os.getenv("VOICE_TRANSCRIBE_TIMEOUT_SECONDS", "20"))
 MIN_AUDIO_BYTES = int(os.getenv("VOICE_MIN_AUDIO_BYTES", "2000"))
 MIN_TRANSCRIPT_CHARS = int(os.getenv("VOICE_MIN_TRANSCRIPT_CHARS", "2"))
-WHISPER_BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "2"))
-WHISPER_BEST_OF = int(os.getenv("WHISPER_BEST_OF", "2"))
-WHISPER_TEMPERATURE = float(os.getenv("WHISPER_TEMPERATURE", "0.0"))
-WHISPER_VAD_FILTER = os.getenv("WHISPER_VAD_FILTER", "false").lower() == "true"
-
-model = None
-model_error = None
-model_size = os.getenv("WHISPER_MODEL_SIZE", "tiny.en")
-
-
-def get_model():
-    global model
-    global model_error
-
-    if model is not None:
-        return model
-    if model_error is not None:
-        raise RuntimeError(model_error)
-
-    try:
-        model = WhisperModel(model_size, device="cpu", compute_type="int8")
-        logger.info(
-            f"Whisper model loaded successfully (model={model_size}, device=cpu, compute_type=int8)"
-        )
-        return model
-    except Exception as e:
-        model_error = str(e)
-        logger.error(f"Failed to load Whisper model: {model_error}")
-        raise
-
-
-def _transcribe_file(path: str):
-    whisper_model = get_model()
-    segments, info = whisper_model.transcribe(
-        path,
-        language="en",
-        beam_size=WHISPER_BEAM_SIZE,
-        best_of=WHISPER_BEST_OF,
-        temperature=WHISPER_TEMPERATURE,
-        vad_filter=WHISPER_VAD_FILTER,
-        condition_on_previous_text=False,
-        without_timestamps=True,
-    )
-    text = " ".join(seg.text.strip() for seg in segments if seg.text).strip()
-    return text, info
 
 
 @router.post("/voice")
 async def voice_chat(audio: UploadFile = File(...)):
-    temp_path = None
     try:
-        logger.info(f"Received audio file: {audio.filename}")
-
-        # Determine file extension
-        filename = audio.filename or "recording.webm"
-        file_ext = os.path.splitext(filename)[1] or ".webm"
-
-        # Save temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
-            content = await audio.read()
-            if not content:
-                raise HTTPException(status_code=400, detail="Empty audio payload")
-            tmp.write(content)
-            temp_path = tmp.name
-
-        file_size = os.path.getsize(temp_path)
-        logger.info(f"Temp file saved: {temp_path}, size: {file_size} bytes")
-        if file_size < MIN_AUDIO_BYTES:
+        content = await audio.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty audio payload")
+        if len(content) < MIN_AUDIO_BYTES:
             raise HTTPException(status_code=422, detail="Audio too short")
 
-        logger.info("Transcribing audio...")
+        filename = (audio.filename or "recording.webm").strip() or "recording.webm"
+        filename_hint = os.path.basename(filename)
+
         try:
-            started = time.perf_counter()
-            text, info = await asyncio.wait_for(
-                asyncio.to_thread(_transcribe_file, temp_path),
-                timeout=TRANSCRIBE_TIMEOUT_SECONDS,
-            )
-            elapsed = time.perf_counter() - started
-            logger.info(
-                f"Transcription complete in {elapsed:.2f}s: '{text}' (language: {info.language})"
-            )
-        except asyncio.TimeoutError:
-            logger.error(
-                f"Transcription timed out after {TRANSCRIBE_TIMEOUT_SECONDS}s"
-            )
-            raise HTTPException(
-                status_code=504,
-                detail={"error": "transcription_timeout", "message": f"Transcription timed out after {TRANSCRIBE_TIMEOUT_SECONDS}s"},
-            )
-        except Exception as e:
-            logger.error(f"Transcription failed: {str(e)}")
+            tr = await transcribe_audio_bytes_async(content, filename_hint=filename_hint, timeout_s=20.0)
+        except SpeechToTextError as e:
+            log_voice_event("voice.legacy_endpoint_transcribe_failed", {"filename": filename_hint, "bytes": len(content)}, error=str(e))
             raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
-        if len(text.strip()) < MIN_TRANSCRIPT_CHARS:
+        text = (tr.text or "").strip()
+        if len(text) < MIN_TRANSCRIPT_CHARS:
             raise HTTPException(status_code=422, detail="No speech detected")
 
+        # Keep legacy contract: return only transcript.
         return {"text": text}
-
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in voice endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-        # Cleanup
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-                logger.info(f"Cleaned up temp file: {temp_path}")
-            except Exception as e:
-                logger.warning(f"Could not delete temp file: {e}")

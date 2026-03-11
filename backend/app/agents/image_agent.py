@@ -1,22 +1,27 @@
-import requests
-from pathlib import Path
+from app.agents.base_agent import BaseAgent
 
 
-class ImageAgent:
+class ImageAgent(BaseAgent):
+    """
+    Compatibility wrapper.
 
-    def __init__(self, base_dir):
-        self.img_dir = Path(base_dir) / "Images"
-        self.img_dir.mkdir(parents=True, exist_ok=True)
+    Prefer using `BrowserAgent` + `BrowserAutomation` for image downloads.
+    """
 
-    def download(self, urls, topic):
+    name = "image_agent"
+    description = "Deprecated. Use browser_agent for Playwright-based image downloads."
 
-        for i, url in enumerate(urls):
-            try:
-                r = requests.get(url)
-                path = self.img_dir / f"{topic}_{i}.jpg"
+    async def execute(self, task: dict):
+        from app.agents.browser_agent import BrowserAgent
 
-                with open(path, "wb") as f:
-                    f.write(r.content)
+        params = (task or {}).get("params") or {}
+        topic = (params.get("topic") or params.get("query") or "").strip()
+        limit = int(params.get("limit", 10))
 
-            except:
-                pass
+        return await BrowserAgent().execute(
+            {
+                "text": task.get("text", ""),
+                "action": "browser_download_images",
+                "params": {"query": topic, "limit": limit},
+            }
+        )

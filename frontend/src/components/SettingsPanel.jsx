@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "../config/api";
 import "./SettingsPanel.css";
+import { resetLearning, setBehaviorTracking } from "../utils/apiService";
 
 export default function SettingsPanel() {
   const [status, setStatus] = useState({
@@ -22,6 +23,12 @@ export default function SettingsPanel() {
   });
   const [uploadingCreds, setUploadingCreds] = useState(false);
 
+  const [voiceEnabled, setVoiceEnabled] = useState(() => (localStorage.getItem("jarvis_voice_enabled") ?? "true") === "true");
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(() => (localStorage.getItem("jarvis_wake_word") ?? "false") === "true");
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem("jarvis_theme") || "dark");
+  const [downloadDir, setDownloadDir] = useState(() => localStorage.getItem("jarvis_download_dir") || "");
+  const [behaviorTrackingEnabled, setBehaviorTrackingEnabled] = useState(true);
+
   function loadStatus() {
     fetch(apiUrl("/api/setup/status"))
       .then((res) => res.json())
@@ -36,6 +43,10 @@ export default function SettingsPanel() {
 
   useEffect(() => {
     loadStatus();
+    // Load learning tracking setting (default true). Best-effort.
+    try {
+      setBehaviorTrackingEnabled((localStorage.getItem("jarvis_behavior_tracking") ?? "true") === "true");
+    } catch {}
   }, []);
 
   async function saveUser() {
@@ -158,6 +169,40 @@ export default function SettingsPanel() {
     window.location.hash = "/login";
   }
 
+  function saveUiPrefs() {
+    try {
+      localStorage.setItem("jarvis_voice_enabled", String(voiceEnabled));
+      localStorage.setItem("jarvis_wake_word", String(wakeWordEnabled));
+      localStorage.setItem("jarvis_theme", themeMode);
+      localStorage.setItem("jarvis_download_dir", downloadDir);
+      localStorage.setItem("jarvis_behavior_tracking", String(behaviorTrackingEnabled));
+    } catch {}
+    setMessage("UI preferences saved.");
+  }
+
+  async function toggleBehaviorTracking(next) {
+    setBehaviorTrackingEnabled(next);
+    try {
+      // Persist locally immediately; backend persists when authenticated.
+      localStorage.setItem("jarvis_behavior_tracking", String(next));
+    } catch {}
+    try {
+      await setBehaviorTracking(next);
+      setMessage(next ? "Behavior tracking enabled." : "Behavior tracking disabled.");
+    } catch (err) {
+      setMessage(err?.message || "Could not update behavior tracking.");
+    }
+  }
+
+  async function resetLearningData() {
+    try {
+      await resetLearning();
+      setMessage("Learning data reset.");
+    } catch (err) {
+      setMessage(err?.message || "Could not reset learning data.");
+    }
+  }
+
   return (
     <div className="settings-wrap">
       <div className="settings-card">
@@ -197,6 +242,42 @@ export default function SettingsPanel() {
             <button onClick={saveAiConfig}>Save AI</button>
             <button onClick={reconnectAI}>Reset AI</button>
           </div>
+        </section>
+
+        <section>
+          <label>App Preferences</label>
+          <div className="row">
+            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, color: "#cbd5e1" }}>
+              <input type="checkbox" checked={voiceEnabled} onChange={(e) => setVoiceEnabled(e.target.checked)} />
+              Voice enabled
+            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, color: "#cbd5e1" }}>
+              <input type="checkbox" checked={wakeWordEnabled} onChange={(e) => setWakeWordEnabled(e.target.checked)} />
+              Wake word (beta)
+            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, color: "#cbd5e1" }}>
+              <input
+                type="checkbox"
+                checked={behaviorTrackingEnabled}
+                onChange={(e) => toggleBehaviorTracking(e.target.checked)}
+              />
+              Behavior tracking
+            </label>
+          </div>
+          <select value={themeMode} onChange={(e) => setThemeMode(e.target.value)}>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="system">System</option>
+          </select>
+          <input
+            value={downloadDir}
+            onChange={(e) => setDownloadDir(e.target.value)}
+            placeholder="Download directory (optional)"
+          />
+          <button onClick={saveUiPrefs}>Save Preferences</button>
+          <button onClick={resetLearningData} style={{ marginTop: 10, background: "rgba(248,113,113,0.2)" }}>
+            Reset learning data
+          </button>
         </section>
 
         <section>
